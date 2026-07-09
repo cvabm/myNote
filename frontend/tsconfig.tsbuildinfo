@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/types.ts","./src/utils.ts","./src/components/loginpage.tsx","./src/components/noteeditor.tsx","./src/components/notelist.tsx","./src/components/settingsmodal.tsx","./src/components/sidebar.tsx","./src/context/authcontext.tsx"],"version":"5.9.3"}

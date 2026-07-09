@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* MD Editor overrides */
+.w-md-editor {
+  --md-editor-bg-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  background: transparent !important;
+}
+.w-md-editor-toolbar {
+  border-bottom: 1px solid #e2e8f0 !important;
+  background: #f8fafc !important;
+  border-radius: 0 !important;
+}
+.w-md-editor-content {
+  background: transparent !important;
+}
+.w-md-editor-text-pre,
+.w-md-editor-text-input,
+.w-md-editor-text {
+  font-size: 15px !important;
+  line-height: 1.7 !important;
+  font-family: 'JetBrains Mono', Consolas, monospace !important;
+}
+.wmde-markdown {
+  font-size: 15px !important;
+  line-height: 1.75 !important;
+  background: transparent !important;
+}
+.wmde-markdown h1,
+.wmde-markdown h2,
+.wmde-markdown h3 {
+  border-bottom: none !important;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  }
+  .btn-ghost {
+    @apply btn text-slate-600 hover:bg-slate-100;
+  }
+  .btn-danger {
+    @apply btn text-red-600 hover:bg-red-50;
+  }
+  .input {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
+  }
+  .sidebar-item {
+    @apply flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100;
+  }
+  .sidebar-item-active {
+    @apply bg-brand-50 text-brand-700 font-medium hover:bg-brand-50;
+  }
+}
