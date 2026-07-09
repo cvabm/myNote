@@ -1,0 +1,17 @@
+services:
+  mynote:
+    build: .
+    container_name: mynote
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      PORT: 3001
+      DB_PATH: /app/data/mynote.db
+      JWT_SECRET: ${JWT_SECRET:-please-change-me-to-a-long-random-string}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASS: ${ADMIN_PASS:-admin123}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      # 数据持久化：笔记库、附件等
+      - ./data:/app/data

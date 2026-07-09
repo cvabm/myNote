@@ -1,0 +1,353 @@
+import { Hono } from 'hono';
+import { nanoid } from 'nanoid';
+import { db, removeNoteFts, syncNoteFts } from '../db.js';
+import { requireAuth, getUser, type AppVariables } from '../auth.js';
+
+type NoteRow = {
+  id: string;
+  user_id: string;
+  notebook_id: string | null;
+  title: string;
+  content: string;
+  content_html: string;
+  is_favorite: number;
+  is_locked: number;
+  deleted_at: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export const noteRoutes = new Hono<{ Variables: AppVariables }>();
+noteRoutes.use('*', requireAuth);
+
+function getTagsForNote(noteId: string) {
+  return db
+    .prepare(
+      `SELECT t.id, t.name, t.color
+       FROM tags t
+       INNER JOIN note_tags nt ON nt.tag_id = t.id
+       WHERE nt.note_id = ?
+       ORDER BY t.name`
+    )
+    .all(noteId) as { id: string; name: string; color: string }[];
+}
+
+function mapNote(row: NoteRow, withContent = true) {
+  const tags = getTagsForNote(row.id);
+  const base = {
+    id: row.id,
+    notebookId: row.notebook_id,
+    title: row.title,
+    isFavorite: !!row.is_favorite,
+    isLocked: !!row.is_locked,
+    deletedAt: row.deleted_at,
+    sortOrder: row.sort_order,
+    tags,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+  if (!withContent) {
+    return {
+      ...base,
+      preview: row.content.slice(0, 160).replace(/\s+/g, ' ').trim(),
+    };
+  }
+  return {
+    ...base,
+    content: row.content,
+    contentHtml: row.content_html,
+  };
+}
+
+function setNoteTags(noteId: string, userId: string, tagNames: string[]) {
+  db.prepare('DELETE FROM note_tags WHERE note_id = ?').run(noteId);
+  for (const raw of tagNames) {
+    const name = raw.trim();
+    if (!name) continue;
+    let tag = db
+      .prepare('SELECT id FROM tags WHERE user_id = ? AND name = ?')
+      .get(userId, name) as { id: string } | undefined;
+    if (!tag) {
+      const id = nanoid();
+      db.prepare('INSERT INTO tags (id, user_id, name) VALUES (?, ?, ?)').run(id, userId, name);
+      tag = { id };
+    }
+    db.prepare('INSERT OR IGNORE INTO note_tags (note_id, tag_id) VALUES (?, ?)').run(
+      noteId,
+      tag.id
+    );
+  }
+}
+
+noteRoutes.get('/', (c) => {
+  const user = getUser(c);
+  const notebookId = c.req.query('notebookId');
+  const favorite = c.req.query('favorite');
+  const trash = c.req.query('trash');
+  const tagId = c.req.query('tagId');
+  const q = (c.req.query('q') || '').trim();
+
+  let sql = `
+    SELECT DISTINCT n.*
+    FROM notes n
+  `;
+  const params: unknown[] = [];
+
+  if (tagId) {
+    sql += ` INNER JOIN note_tags nt ON nt.note_id = n.id AND nt.tag_id = ? `;
+    params.push(tagId);
+  }
+
+  sql += ` WHERE n.user_id = ? `;
+  params.push(user.id);
+
+  if (trash === '1') {
+    sql += ` AND n.deleted_at IS NOT NULL `;
+  } else {
+    sql += ` AND n.deleted_at IS NULL `;
+  }
+
+  if (favorite === '1') {
+    sql += ` AND n.is_favorite = 1 `;
+  }
+
+  if (notebookId === 'null' || notebookId === 'uncategorized') {
+    sql += ` AND n.notebook_id IS NULL `;
+  } else if (notebookId) {
+    sql += ` AND n.notebook_id = ? `;
+    params.push(notebookId);
+  }
+
+  if (q) {
+    let ids: string[] = [];
+    try {
+      // 将查询拆成词，并加 * 前缀匹配；特殊字符转义
+      const terms = q
+        .split(/\s+/)
+        .map((t) => t.replace(/["'*:^(){}[\]~-]/g, ' ').trim())
+        .filter(Boolean)
+        .map((t) => `"${t}"*`);
+      const matchExpr = terms.join(' ');
+      if (matchExpr) {
+        const ftsRows = db
+          .prepare(
+            `SELECT note_id FROM notes_fts
+             WHERE notes_fts MATCH ?
+             ORDER BY rank`
+          )
+          .all(matchExpr) as { note_id: string }[];
+        ids = ftsRows.map((r) => r.note_id);
+      }
+    } catch {
+      // FTS 语法失败时回退 LIKE
+      ids = [];
+    }
+    if (ids.length === 0) {
+      const like = `%${q}%`;
+      const likeRows = db
+        .prepare(
+          `SELECT id FROM notes
+           WHERE user_id = ? AND (title LIKE ? OR content LIKE ?)`
+        )
+        .all(user.id, like, like) as { id: string }[];
+      ids = likeRows.map((r) => r.id);
+    }
+    if (ids.length === 0) {
+      return c.json([]);
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    sql += ` AND n.id IN (${placeholders}) `;
+    params.push(...ids);
+  }
+
+  sql += ` ORDER BY n.updated_at DESC `;
+
+  const rows = db.prepare(sql).all(...params) as NoteRow[];
+  return c.json(rows.map((r) => mapNote(r, false)));
+});
+
+noteRoutes.get('/:id', (c) => {
+  const user = getUser(c);
+  const row = db
+    .prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?')
+    .get(c.req.param('id'), user.id) as NoteRow | undefined;
+  if (!row) return c.json({ error: '笔记不存在' }, 404);
+  return c.json(mapNote(row, true));
+});
+
+noteRoutes.post('/', async (c) => {
+  const user = getUser(c);
+  const body = await c.req.json().catch(() => ({}));
+  const title = String(body.title ?? '未命名笔记').trim() || '未命名笔记';
+  const content = String(body.content ?? '');
+  const notebookId = body.notebookId ? String(body.notebookId) : null;
+  const tags: string[] = Array.isArray(body.tags) ? body.tags.map(String) : [];
+
+  if (notebookId) {
+    const nb = db
+      .prepare('SELECT id FROM notebooks WHERE id = ? AND user_id = ?')
+      .get(notebookId, user.id);
+    if (!nb) return c.json({ error: '笔记本不存在' }, 400);
+  }
+
+  const id = nanoid();
+  const tx = db.transaction(() => {
+    db.prepare(
+      `INSERT INTO notes (id, user_id, notebook_id, title, content)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(id, user.id, notebookId, title, content);
+    syncNoteFts(id, title, content);
+    setNoteTags(id, user.id, tags);
+  });
+  tx();
+
+  const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow;
+  return c.json(mapNote(row, true), 201);
+});
+
+noteRoutes.patch('/:id', async (c) => {
+  const user = getUser(c);
+  const id = c.req.param('id');
+  const existing = db
+    .prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?')
+    .get(id, user.id) as NoteRow | undefined;
+  if (!existing) return c.json({ error: '笔记不存在' }, 404);
+  if (existing.deleted_at) return c.json({ error: '回收站中的笔记不可编辑' }, 400);
+
+  const body = await c.req.json().catch(() => ({}));
+
+  // 已锁定时仅允许解锁 / 收藏，禁止改内容
+  const unlockOnly =
+    existing.is_locked &&
+    body.isLocked === false &&
+    body.title === undefined &&
+    body.content === undefined &&
+    body.contentHtml === undefined &&
+    body.notebookId === undefined &&
+    body.tags === undefined;
+
+  const favoriteOnly =
+    existing.is_locked &&
+    body.isFavorite !== undefined &&
+    body.title === undefined &&
+    body.content === undefined &&
+    body.contentHtml === undefined &&
+    body.notebookId === undefined &&
+    body.tags === undefined &&
+    body.isLocked === undefined;
+
+  if (existing.is_locked && !unlockOnly && !favoriteOnly) {
+    return c.json({ error: '笔记已锁定' }, 400);
+  }
+
+  const title =
+    body.title !== undefined
+      ? String(body.title).trim() || '未命名笔记'
+      : existing.title;
+  const content = body.content !== undefined ? String(body.content) : existing.content;
+  const contentHtml =
+    body.contentHtml !== undefined ? String(body.contentHtml) : existing.content_html;
+  let notebookId = existing.notebook_id;
+  if (body.notebookId !== undefined) {
+    notebookId = body.notebookId ? String(body.notebookId) : null;
+    if (notebookId) {
+      const nb = db
+        .prepare('SELECT id FROM notebooks WHERE id = ? AND user_id = ?')
+        .get(notebookId, user.id);
+      if (!nb) return c.json({ error: '笔记本不存在' }, 400);
+    }
+  }
+  const isFavorite =
+    body.isFavorite !== undefined ? (body.isFavorite ? 1 : 0) : existing.is_favorite;
+  const isLocked =
+    body.isLocked !== undefined ? (body.isLocked ? 1 : 0) : existing.is_locked;
+
+  const tx = db.transaction(() => {
+    db.prepare(
+      `UPDATE notes
+       SET title = ?, content = ?, content_html = ?, notebook_id = ?,
+           is_favorite = ?, is_locked = ?, updated_at = datetime('now')
+       WHERE id = ? AND user_id = ?`
+    ).run(title, content, contentHtml, notebookId, isFavorite, isLocked, id, user.id);
+    syncNoteFts(id, title, content);
+    if (Array.isArray(body.tags)) {
+      setNoteTags(id, user.id, body.tags.map(String));
+    }
+  });
+  tx();
+
+  const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow;
+  return c.json(mapNote(row, true));
+});
+
+// 移入回收站
+noteRoutes.post('/:id/trash', (c) => {
+  const user = getUser(c);
+  const id = c.req.param('id');
+  const existing = db
+    .prepare('SELECT id, deleted_at FROM notes WHERE id = ? AND user_id = ?')
+    .get(id, user.id) as { id: string; deleted_at: string | null } | undefined;
+  if (!existing) return c.json({ error: '笔记不存在' }, 404);
+  if (existing.deleted_at) return c.json({ error: '已在回收站' }, 400);
+
+  db.prepare(
+    `UPDATE notes SET deleted_at = datetime('now'), updated_at = datetime('now')
+     WHERE id = ? AND user_id = ?`
+  ).run(id, user.id);
+  return c.json({ ok: true });
+});
+
+// 从回收站恢复
+noteRoutes.post('/:id/restore', (c) => {
+  const user = getUser(c);
+  const id = c.req.param('id');
+  const existing = db
+    .prepare('SELECT id, deleted_at FROM notes WHERE id = ? AND user_id = ?')
+    .get(id, user.id) as { id: string; deleted_at: string | null } | undefined;
+  if (!existing) return c.json({ error: '笔记不存在' }, 404);
+  if (!existing.deleted_at) return c.json({ error: '不在回收站中' }, 400);
+
+  db.prepare(
+    `UPDATE notes SET deleted_at = NULL, updated_at = datetime('now')
+     WHERE id = ? AND user_id = ?`
+  ).run(id, user.id);
+  return c.json({ ok: true });
+});
+
+// 永久删除
+noteRoutes.delete('/:id', (c) => {
+  const user = getUser(c);
+  const id = c.req.param('id');
+  const existing = db
+    .prepare('SELECT id FROM notes WHERE id = ? AND user_id = ?')
+    .get(id, user.id);
+  if (!existing) return c.json({ error: '笔记不存在' }, 404);
+
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM notes WHERE id = ? AND user_id = ?').run(id, user.id);
+    removeNoteFts(id);
+  });
+  tx();
+  return c.json({ ok: true });
+});
+
+// 清空回收站
+noteRoutes.delete('/', (c) => {
+  const user = getUser(c);
+  const trashOnly = c.req.query('trash') === '1';
+  if (!trashOnly) return c.json({ error: '请使用 ?trash=1 清空回收站' }, 400);
+
+  const rows = db
+    .prepare('SELECT id FROM notes WHERE user_id = ? AND deleted_at IS NOT NULL')
+    .all(user.id) as { id: string }[];
+
+  const tx = db.transaction(() => {
+    for (const r of rows) {
+      db.prepare('DELETE FROM notes WHERE id = ?').run(r.id);
+      removeNoteFts(r.id);
+    }
+  });
+  tx();
+  return c.json({ ok: true, count: rows.length });
+});
