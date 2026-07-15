@@ -23,16 +23,25 @@ export default {
         },
       },
       fontFamily: {
+        // 系统字体栈：国内无需拉 Google Fonts
         sans: [
-          'Inter',
           'system-ui',
           '-apple-system',
           'Segoe UI',
           'PingFang SC',
+          'Hiragino Sans GB',
           'Microsoft YaHei',
+          'Noto Sans SC',
           'sans-serif',
         ],
-        mono: ['JetBrains Mono', 'Consolas', 'monospace'],
+        mono: [
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'Consolas',
+          'Liberation Mono',
+          'monospace',
+        ],
       },
       boxShadow: {
         soft: '0 4px 24px -4px rgba(15, 23, 42, 0.08)',

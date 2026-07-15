@@ -10,10 +10,32 @@ html,
 body,
 #root {
   height: 100%;
+  /* 手机浏览器地址栏伸缩时更稳 */
+  height: 100dvh;
+  overflow: hidden;
 }
 
 body {
   margin: 0;
+  /* 减少 iOS 橡皮筋带动整页 */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+}
+
+/* 刘海屏安全区 */
+.safe-pt {
+  padding-top: max(0.25rem, env(safe-area-inset-top));
+}
+.safe-pb {
+  padding-bottom: max(0.25rem, env(safe-area-inset-bottom));
+}
+.safe-pl {
+  padding-left: env(safe-area-inset-left);
+}
+.safe-pr {
+  padding-right: env(safe-area-inset-right);
 }
 
 /* Scrollbar */
@@ -29,17 +51,27 @@ body {
   background: #94a3b8;
 }
 
+@media (max-width: 767px) {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+}
+
 /* MD Editor overrides */
 .w-md-editor {
   --md-editor-bg-color: transparent !important;
   box-shadow: none !important;
   border: none !important;
   background: transparent !important;
+  height: 100% !important;
 }
 .w-md-editor-toolbar {
   border-bottom: 1px solid #e2e8f0 !important;
   background: #f8fafc !important;
   border-radius: 0 !important;
+  flex-wrap: wrap !important;
+  row-gap: 2px;
 }
 .w-md-editor-content {
   background: transparent !important;
@@ -49,12 +81,14 @@ body {
 .w-md-editor-text {
   font-size: 15px !important;
   line-height: 1.7 !important;
-  font-family: 'JetBrains Mono', Consolas, monospace !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace !important;
 }
 .wmde-markdown {
   font-size: 15px !important;
   line-height: 1.75 !important;
   background: transparent !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .wmde-markdown h1,
 .wmde-markdown h2,
@@ -62,24 +96,48 @@ body {
   border-bottom: none !important;
 }
 
+/* 手机：工具栏更易点、输入不触发 iOS 缩放（>=16px） */
+@media (max-width: 767px) {
+  .w-md-editor-toolbar {
+    padding: 4px 2px !important;
+  }
+  .w-md-editor-toolbar li > button {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .w-md-editor-text-pre,
+  .w-md-editor-text-input,
+  .w-md-editor-text {
+    font-size: 16px !important;
+    line-height: 1.65 !important;
+  }
+  .wmde-markdown {
+    font-size: 16px !important;
+    padding: 0 4px !important;
+  }
+  .w-md-editor-preview {
+    padding: 10px 12px !important;
+  }
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-700;
   }
   .btn-ghost {
-    @apply btn text-slate-600 hover:bg-slate-100;
+    @apply btn text-slate-600 hover:bg-slate-100 active:bg-slate-100;
   }
   .btn-danger {
-    @apply btn text-red-600 hover:bg-red-50;
+    @apply btn text-red-600 hover:bg-red-50 active:bg-red-50;
   }
   .input {
     @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
   }
   .sidebar-item {
-    @apply flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100;
+    @apply flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-slate-600 transition hover:bg-slate-100 active:bg-slate-100 md:py-1.5;
   }
   .sidebar-item-active {
     @apply bg-brand-50 text-brand-700 font-medium hover:bg-brand-50;

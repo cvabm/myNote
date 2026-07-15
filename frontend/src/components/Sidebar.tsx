@@ -13,6 +13,7 @@ import {
   Trash2,
   FileText,
   Settings,
+  X,
 } from 'lucide-react';
 import type { Notebook, Tag as TagType, ViewFilter } from '../types';
 import { buildNotebookTree, type NotebookTreeNode } from '../utils';
@@ -29,6 +30,9 @@ type Props = {
   onLogout: () => void;
   onOpenSettings: () => void;
   username: string;
+  /** 手机端抽屉是否打开 */
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 };
 
 function NotebookNode({
@@ -57,8 +61,9 @@ function NotebookNode({
       >
         <button
           type="button"
-          className="shrink-0 rounded p-0.5 hover:bg-slate-200/70"
+          className="shrink-0 rounded p-1 hover:bg-slate-200/70"
           onClick={() => setOpen((v) => !v)}
+          aria-label={open ? '折叠' : '展开'}
         >
           {node.children.length > 0 ? (
             open ? (
@@ -82,10 +87,11 @@ function NotebookNode({
           <span className="truncate">{node.name}</span>
           <span className="ml-auto text-xs text-slate-400">{node.noteCount}</span>
         </button>
+        {/* 手机无 hover：始终可点；桌面仅 hover 显示 */}
         <button
           type="button"
           title="新建子笔记本"
-          className="hidden rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 group-hover:inline-flex"
+          className="inline-flex rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 md:hidden md:group-hover:inline-flex"
           onClick={() => onCreateChild(node.id)}
         >
           <FolderPlus className="h-3.5 w-3.5" />
@@ -93,7 +99,7 @@ function NotebookNode({
         <button
           type="button"
           title="删除笔记本"
-          className="hidden rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-600 group-hover:inline-flex"
+          className="inline-flex rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 md:hidden md:group-hover:inline-flex"
           onClick={() => onDelete(node.id)}
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -127,14 +133,29 @@ export function Sidebar({
   onLogout,
   onOpenSettings,
   username,
+  mobileOpen = false,
+  onMobileClose,
 }: Props) {
   const [q, setQ] = useState('');
   const tree = useMemo(() => buildNotebookTree(notebooks), [notebooks]);
   const activeNotebookId = filter.type === 'notebook' ? filter.id : undefined;
 
+  function selectFilter(f: ViewFilter) {
+    onFilterChange(f);
+    onMobileClose?.();
+  }
+
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+    <aside
+      className={clsx(
+        'flex h-full w-[min(18rem,85vw)] shrink-0 flex-col border-r border-slate-200 bg-white',
+        // 手机：左侧抽屉；桌面：静态侧栏
+        'fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out',
+        'md:static md:z-auto md:w-64 md:max-w-none md:translate-x-0',
+        mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0 md:shadow-none'
+      )}
+    >
+      <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 safe-pt">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
           <BookMarked className="h-4 w-4" />
         </div>
@@ -142,8 +163,25 @@ export function Sidebar({
           <div className="truncate text-sm font-semibold text-slate-800">MyNote</div>
           <div className="truncate text-xs text-slate-400">{username}</div>
         </div>
-        <button type="button" className="btn-ghost ml-auto !p-1.5" onClick={onCreateNote} title="新建笔记">
+        <button
+          type="button"
+          className="btn-ghost ml-auto !p-2"
+          onClick={() => {
+            onCreateNote();
+            onMobileClose?.();
+          }}
+          title="新建笔记"
+        >
           <Plus className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          className="btn-ghost !p-2 md:hidden"
+          onClick={onMobileClose}
+          title="关闭菜单"
+          aria-label="关闭菜单"
+        >
+          <X className="h-4 w-4" />
         </button>
       </div>
 
@@ -151,25 +189,28 @@ export function Sidebar({
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           <input
-            className="input py-1.5 pl-8 text-xs"
+            className="input py-2 pl-8 text-sm md:py-1.5 md:text-xs"
             placeholder="搜索笔记…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') onSearch(q.trim());
+              if (e.key === 'Enter') {
+                onSearch(q.trim());
+                onMobileClose?.();
+              }
             }}
           />
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-2">
         <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           浏览
         </div>
         <button
           type="button"
           className={clsx('sidebar-item', filter.type === 'all' && 'sidebar-item-active')}
-          onClick={() => onFilterChange({ type: 'all' })}
+          onClick={() => selectFilter({ type: 'all' })}
         >
           <FileText className="h-4 w-4" />
           全部笔记
@@ -177,7 +218,7 @@ export function Sidebar({
         <button
           type="button"
           className={clsx('sidebar-item', filter.type === 'favorite' && 'sidebar-item-active')}
-          onClick={() => onFilterChange({ type: 'favorite' })}
+          onClick={() => selectFilter({ type: 'favorite' })}
         >
           <Star className="h-4 w-4" />
           收藏
@@ -185,7 +226,7 @@ export function Sidebar({
         <button
           type="button"
           className={clsx('sidebar-item', filter.type === 'trash' && 'sidebar-item-active')}
-          onClick={() => onFilterChange({ type: 'trash' })}
+          onClick={() => selectFilter({ type: 'trash' })}
         >
           <Trash2 className="h-4 w-4" />
           回收站
@@ -197,7 +238,7 @@ export function Sidebar({
           </span>
           <button
             type="button"
-            className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             title="新建笔记本"
             onClick={() => onCreateNotebook(null)}
           >
@@ -213,7 +254,7 @@ export function Sidebar({
             node={node}
             depth={0}
             activeId={activeNotebookId}
-            onSelect={(id) => onFilterChange({ type: 'notebook', id })}
+            onSelect={(id) => selectFilter({ type: 'notebook', id })}
             onCreateChild={(id) => onCreateNotebook(id)}
             onDelete={onDeleteNotebook}
           />
@@ -232,7 +273,7 @@ export function Sidebar({
                   'sidebar-item',
                   filter.type === 'tag' && filter.id === tag.id && 'sidebar-item-active'
                 )}
-                onClick={() => onFilterChange({ type: 'tag', id: tag.id })}
+                onClick={() => selectFilter({ type: 'tag', id: tag.id })}
               >
                 <Tag className="h-4 w-4" style={{ color: tag.color }} />
                 <span className="truncate">{tag.name}</span>
@@ -243,7 +284,7 @@ export function Sidebar({
         )}
       </div>
 
-      <div className="flex items-center gap-1 border-t border-slate-100 p-2">
+      <div className="flex items-center gap-1 border-t border-slate-100 p-2 safe-pb">
         <button type="button" className="btn-ghost flex-1 justify-start" onClick={onOpenSettings}>
           <Settings className="h-4 w-4" />
           设置

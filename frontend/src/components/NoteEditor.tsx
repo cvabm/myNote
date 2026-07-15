@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import MDEditor from '@uiw/react-md-editor';
 import {
+  ArrowLeft,
   Lock,
   RotateCcw,
   Star,
   Trash2,
   Unlock,
-  X,
 } from 'lucide-react';
 import type { Note, Notebook } from '../types';
 import { formatRelativeTime } from '../utils';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 type NotePatch = {
   title?: string;
@@ -21,7 +22,7 @@ type NotePatch = {
 };
 
 type Props = {
-  note: Note | null;
+  note: Note;
   notebooks: Notebook[];
   saving: boolean;
   onChange: (patch: NotePatch) => void;
@@ -42,23 +43,15 @@ export function NoteEditor({
   onClose,
 }: Props) {
   const [tagInput, setTagInput] = useState('');
-  const isTrash = !!note?.deletedAt;
-  const readOnly = isTrash || !!note?.isLocked;
+  const isMobile = useIsMobile();
+  const isTrash = !!note.deletedAt;
+  const readOnly = isTrash || !!note.isLocked;
 
-  const tagNames = useMemo(() => note?.tags.map((t) => t.name) || [], [note?.tags]);
+  const tagNames = useMemo(() => note.tags.map((t) => t.name) || [], [note.tags]);
 
   useEffect(() => {
     setTagInput(tagNames.join(', '));
-  }, [note?.id, tagNames.join(',')]);
-
-  if (!note) {
-    return (
-      <div className="flex h-full flex-1 flex-col items-center justify-center bg-white text-slate-400">
-        <div className="mb-2 text-5xl opacity-20">✎</div>
-        <p className="text-sm">选择或新建一篇笔记开始书写</p>
-      </div>
-    );
-  }
+  }, [note.id, tagNames.join(',')]);
 
   function commitTags() {
     const tags = tagInput
@@ -68,24 +61,39 @@ export function NoteEditor({
     onChange({ tags });
   }
 
+  // 手机用单栏 edit/preview，避免 live 左右分屏挤成一团
+  const previewMode = readOnly ? 'preview' : isMobile ? 'edit' : 'live';
+
   return (
-    <div className="flex h-full flex-1 flex-col bg-white" data-color-mode="light">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2">
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-white" data-color-mode="light">
+      <div className="flex items-center gap-1 border-b border-slate-200 px-2 py-2 safe-pt sm:gap-2 sm:px-4">
+        <button
+          type="button"
+          className="btn-ghost shrink-0 !p-2 md:hidden"
+          onClick={onClose}
+          title="返回列表"
+          aria-label="返回列表"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
         <input
-          className="min-w-0 flex-1 border-0 bg-transparent text-lg font-semibold text-slate-800 outline-none placeholder:text-slate-300"
+          className="min-w-0 flex-1 border-0 bg-transparent text-base font-semibold text-slate-800 outline-none placeholder:text-slate-300 sm:text-lg"
           value={note.title}
           disabled={readOnly}
           onChange={(e) => onChange({ title: e.target.value })}
           placeholder="笔记标题"
         />
-        <span className="text-xs text-slate-400">
+        <span className="hidden shrink-0 text-xs text-slate-400 sm:inline">
           {saving ? '保存中…' : `已保存 · ${formatRelativeTime(note.updatedAt)}`}
+        </span>
+        <span className="shrink-0 text-[11px] text-slate-400 sm:hidden">
+          {saving ? '保存中' : '已保存'}
         </span>
         {!isTrash && (
           <>
             <button
               type="button"
-              className="btn-ghost !p-2"
+              className="btn-ghost shrink-0 !p-2"
               title={note.isFavorite ? '取消收藏' : '收藏'}
               onClick={() => onChange({ isFavorite: !note.isFavorite })}
             >
@@ -95,39 +103,45 @@ export function NoteEditor({
             </button>
             <button
               type="button"
-              className="btn-ghost !p-2"
+              className="btn-ghost shrink-0 !p-2"
               title={note.isLocked ? '解锁' : '锁定'}
               onClick={() => onChange({ isLocked: !note.isLocked })}
             >
               {note.isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
             </button>
-            <button type="button" className="btn-danger !p-2" title="移入回收站" onClick={onTrash}>
+            <button
+              type="button"
+              className="btn-danger shrink-0 !p-2"
+              title="移入回收站"
+              onClick={onTrash}
+            >
               <Trash2 className="h-4 w-4" />
             </button>
           </>
         )}
         {isTrash && (
           <>
-            <button type="button" className="btn-ghost" onClick={onRestore}>
+            <button type="button" className="btn-ghost shrink-0 !px-2 !py-2 text-xs" onClick={onRestore}>
               <RotateCcw className="h-4 w-4" />
-              恢复
+              <span className="hidden xs:inline sm:inline">恢复</span>
             </button>
-            <button type="button" className="btn-danger" onClick={onDeleteForever}>
+            <button
+              type="button"
+              className="btn-danger shrink-0 !px-2 !py-2 text-xs"
+              onClick={onDeleteForever}
+            >
               <Trash2 className="h-4 w-4" />
-              永久删除
+              <span className="hidden sm:inline">永久删除</span>
             </button>
           </>
         )}
-        <button type="button" className="btn-ghost !p-2 md:hidden" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-2 text-sm">
-        <label className="flex items-center gap-2 text-slate-500">
-          <span className="text-xs">笔记本</span>
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm sm:gap-3 sm:px-4">
+        <label className="flex min-w-0 items-center gap-2 text-slate-500">
+          <span className="shrink-0 text-xs">笔记本</span>
           <select
-            className="input w-auto py-1 text-xs"
+            className="input w-auto max-w-[40vw] py-1.5 text-xs sm:max-w-none sm:py-1"
             disabled={readOnly}
             value={note.notebookId || ''}
             onChange={(e) =>
@@ -142,10 +156,10 @@ export function NoteEditor({
             ))}
           </select>
         </label>
-        <label className="flex min-w-[200px] flex-1 items-center gap-2 text-slate-500">
+        <label className="flex min-w-0 flex-1 basis-full items-center gap-2 text-slate-500 sm:basis-auto sm:min-w-[200px]">
           <span className="shrink-0 text-xs">标签</span>
           <input
-            className="input py-1 text-xs"
+            className="input py-1.5 text-xs sm:py-1"
             disabled={readOnly}
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
@@ -171,11 +185,11 @@ export function NoteEditor({
         )}
       </div>
 
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-hidden safe-pb">
         <MDEditor
           value={note.content}
           height="100%"
-          preview={readOnly ? 'preview' : 'live'}
+          preview={previewMode}
           hideToolbar={readOnly}
           visibleDragbar={false}
           onChange={(v) => {
