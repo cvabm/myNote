@@ -1,7 +1,7 @@
 import clsx from 'clsx';
-import { Menu, Plus, Star, Trash2 } from 'lucide-react';
+import { Loader2, Menu, Plus, Star, Trash2 } from 'lucide-react';
 import type { NoteListItem } from '../types';
-import { formatRelativeTime } from '../utils';
+import { formatRelativeTime, highlightText } from '../utils';
 
 type Props = {
   notes: NoteListItem[];
@@ -9,11 +9,13 @@ type Props = {
   onSelect: (id: string) => void;
   isTrash?: boolean;
   onEmptyTrash?: () => void;
-  /** 手机端打开侧边栏 */
   onOpenSidebar?: () => void;
   onCreateNote?: () => void;
-  /** 手机选中笔记时隐藏列表 */
   mobileHidden?: boolean;
+  /** 搜索关键字：用于标题/摘要高亮 */
+  highlightQuery?: string;
+  /** 是否正在搜索请求中 */
+  searching?: boolean;
 };
 
 export function NoteList({
@@ -25,7 +27,12 @@ export function NoteList({
   onOpenSidebar,
   onCreateNote,
   mobileHidden,
+  highlightQuery = '',
+  searching = false,
 }: Props) {
+  const isSearch = !!highlightQuery.trim();
+  const q = highlightQuery.trim();
+
   return (
     <div
       className={clsx(
@@ -45,10 +52,19 @@ export function NoteList({
             <Menu className="h-5 w-5" />
           </button>
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-800">
-              {isTrash ? '回收站' : '笔记'}
+            <div className="truncate text-sm font-semibold text-slate-800">
+              {isTrash ? '回收站' : isSearch ? '搜索结果' : '笔记'}
             </div>
-            <div className="text-xs text-slate-400">{notes.length} 篇</div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              {searching && <Loader2 className="h-3 w-3 animate-spin" />}
+              {isSearch ? (
+                <span className="truncate">
+                  “{q}” · {notes.length} 条
+                </span>
+              ) : (
+                <span>{notes.length} 篇</span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -58,7 +74,7 @@ export function NoteList({
               <span className="hidden sm:inline">清空</span>
             </button>
           )}
-          {!isTrash && onCreateNote && (
+          {!isTrash && !isSearch && onCreateNote && (
             <button
               type="button"
               className="btn-primary !px-2.5 !py-2 md:hidden"
@@ -74,7 +90,9 @@ export function NoteList({
 
       <div className="flex-1 overflow-y-auto overscroll-contain safe-pb">
         {notes.length === 0 && (
-          <div className="px-4 py-10 text-center text-sm text-slate-400">暂无笔记</div>
+          <div className="px-4 py-10 text-center text-sm text-slate-400">
+            {searching ? '搜索中…' : isSearch ? '没有匹配的笔记' : '暂无笔记'}
+          </div>
         )}
         {notes.map((note) => (
           <button
@@ -90,7 +108,9 @@ export function NoteList({
           >
             <div className="mb-1 flex items-start gap-2">
               <span className="line-clamp-1 flex-1 text-sm font-medium text-slate-800">
-                {note.title || '未命名笔记'}
+                {isSearch
+                  ? highlightText(note.title || '未命名笔记', q)
+                  : note.title || '未命名笔记'}
               </span>
               {note.isFavorite && (
                 <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />
@@ -98,7 +118,7 @@ export function NoteList({
             </div>
             {note.preview && (
               <p className="mb-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500">
-                {note.preview}
+                {isSearch ? highlightText(note.preview, q) : note.preview}
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2">

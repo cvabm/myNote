@@ -21,21 +21,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    // 不要把 MD 编辑器打进初始 HTML 的 modulepreload
-    modulePreload: {
-      resolveDependencies: (_filename, deps) =>
-        deps.filter(
-          (dep) =>
-            !dep.includes('vendor-md') &&
-            !dep.includes('NoteEditor') &&
-            !/react-md-editor|react-markdown|remark-gfm|markdown-preview/i.test(dep)
-        ),
-    },
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
-          // 仅拆分 React 运行时；MD 编辑器留给 NoteEditor 异步 chunk，打开笔记再下
           if (
             id.includes('node_modules/react-dom') ||
             id.includes('node_modules/react/') ||
@@ -44,9 +33,12 @@ export default defineConfig({
           ) {
             return 'vendor-react';
           }
+          if (id.includes('node_modules/marked')) {
+            return 'vendor-marked';
+          }
         },
       },
     },
-    chunkSizeWarningLimit: 1200,
+    chunkSizeWarningLimit: 500,
   },
 });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
   BookMarked,
@@ -26,13 +26,14 @@ type Props = {
   onCreateNotebook: (parentId?: string | null) => void;
   onDeleteNotebook: (id: string) => void;
   onCreateNote: () => void;
+  /** 即时搜索（输入即触发，已防抖） */
   onSearch: (q: string) => void;
   onLogout: () => void;
   onOpenSettings: () => void;
   username: string;
-  /** 手机端抽屉是否打开 */
   mobileOpen?: boolean;
   onMobileClose?: () => void;
+  searching?: boolean;
 };
 
 function NotebookNode({
@@ -135,14 +136,45 @@ export function Sidebar({
   username,
   mobileOpen = false,
   onMobileClose,
+  searching = false,
 }: Props) {
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(filter.type === 'search' ? filter.q : '');
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tree = useMemo(() => buildNotebookTree(notebooks), [notebooks]);
   const activeNotebookId = filter.type === 'notebook' ? filter.id : undefined;
 
+  // 离开搜索视图时清空输入框（点「全部/收藏」等）；输入过程中由本地 state 接管，避免防抖回写打断
+  useEffect(() => {
+    if (filter.type !== 'search') setQ('');
+  }, [filter.type]);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, []);
+
   function selectFilter(f: ViewFilter) {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    setQ('');
     onFilterChange(f);
     onMobileClose?.();
+  }
+
+  function handleSearchInput(value: string) {
+    setQ(value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    // 输入即搜，短防抖；清空立即恢复列表
+    const delay = value.trim() ? 220 : 0;
+    searchTimer.current = setTimeout(() => {
+      onSearch(value.trim());
+    }, delay);
+  }
+
+  function clearSearch() {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    setQ('');
+    onSearch('');
   }
 
   return (
@@ -185,22 +217,46 @@ export function Sidebar({
         </button>
       </div>
 
-      <div className="border-b border-slate-100 p-3">
+      <div className="border-b border-slate-100 p-3" data-search-box>
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <Search
+            className={clsx(
+              'absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2',
+              searching ? 'animate-pulse text-brand-500' : 'text-slate-400'
+            )}
+          />
           <input
-            className="input py-2 pl-8 text-sm md:py-1.5 md:text-xs"
-            placeholder="搜索笔记…"
+            className="input py-2 pl-8 pr-8 text-sm md:py-1.5 md:text-xs"
+            placeholder="搜索标题或正文…"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => handleSearchInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                onSearch(q.trim());
-                onMobileClose?.();
+              if (e.key === 'Escape') {
+                clearSearch();
+                (e.target as HTMLInputElement).blur();
               }
             }}
+            enterKeyHint="search"
+            autoComplete="off"
+            spellCheck={false}
           />
+          {q && (
+            <button
+              type="button"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              onClick={clearSearch}
+              title="清除搜索"
+              aria-label="清除搜索"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
+        {filter.type === 'search' && (
+          <div className="mt-1.5 px-0.5 text-[11px] text-slate-400">
+            {searching ? '正在搜索…' : `匹配 “${filter.q}” 的结果已显示在列表`}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain p-2">

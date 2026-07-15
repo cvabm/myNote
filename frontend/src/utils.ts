@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import { createElement, Fragment } from 'react';
 import type { Notebook } from './types';
 
 export function formatRelativeTime(iso: string) {
@@ -42,5 +44,46 @@ export function debounce<T extends (...args: never[]) => void>(fn: T, ms: number
     if (t) clearTimeout(t);
     t = setTimeout(() => fn(...args), ms);
   };
+}
+
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** 将文本按关键字拆分并高亮（不区分大小写，多词均高亮） */
+export function highlightText(text: string, query: string): ReactNode {
+  if (!text) return text;
+  const terms = query
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  if (terms.length === 0) return text;
+
+  const pattern = terms.map(escapeRegExp).join('|');
+  if (!pattern) return text;
+  const re = new RegExp(`(${pattern})`, 'gi');
+  const parts = text.split(re);
+  if (parts.length === 1) return text;
+
+  const lowerTerms = new Set(terms.map((t) => t.toLowerCase()));
+  return createElement(
+    Fragment,
+    null,
+    ...parts.map((part, i) => {
+      if (lowerTerms.has(part.toLowerCase())) {
+        return createElement(
+          'mark',
+          {
+            key: i,
+            className:
+              'rounded-sm bg-amber-200/90 px-0.5 font-medium text-amber-950 not-italic',
+          },
+          part
+        );
+      }
+      return part;
+    })
+  );
 }
 

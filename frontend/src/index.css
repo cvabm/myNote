@@ -10,21 +10,18 @@ html,
 body,
 #root {
   height: 100%;
-  /* 手机浏览器地址栏伸缩时更稳 */
   height: 100dvh;
   overflow: hidden;
 }
 
 body {
   margin: 0;
-  /* 减少 iOS 橡皮筋带动整页 */
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Noto Sans SC', sans-serif;
 }
 
-/* 刘海屏安全区 */
 .safe-pt {
   padding-top: max(0.25rem, env(safe-area-inset-top));
 }
@@ -38,7 +35,6 @@ body {
   padding-right: env(safe-area-inset-right);
 }
 
-/* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -58,65 +54,112 @@ body {
   }
 }
 
-/* MD Editor overrides */
-.w-md-editor {
-  --md-editor-bg-color: transparent !important;
-  box-shadow: none !important;
-  border: none !important;
-  background: transparent !important;
-  height: 100% !important;
-}
-.w-md-editor-toolbar {
-  border-bottom: 1px solid #e2e8f0 !important;
-  background: #f8fafc !important;
-  border-radius: 0 !important;
-  flex-wrap: wrap !important;
-  row-gap: 2px;
-}
-.w-md-editor-content {
-  background: transparent !important;
-}
-.w-md-editor-text-pre,
-.w-md-editor-text-input,
-.w-md-editor-text {
-  font-size: 15px !important;
-  line-height: 1.7 !important;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace !important;
-}
-.wmde-markdown {
-  font-size: 15px !important;
-  line-height: 1.75 !important;
-  background: transparent !important;
+/* 轻量 Markdown 预览 */
+.md-preview {
+  font-size: 15px;
+  line-height: 1.75;
+  color: #1e293b;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
-.wmde-markdown h1,
-.wmde-markdown h2,
-.wmde-markdown h3 {
-  border-bottom: none !important;
+.md-preview > :first-child {
+  margin-top: 0;
+}
+.md-preview > :last-child {
+  margin-bottom: 0;
+}
+.md-preview h1,
+.md-preview h2,
+.md-preview h3,
+.md-preview h4 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.25em 0 0.5em;
+  color: #0f172a;
+}
+.md-preview h1 {
+  font-size: 1.6em;
+}
+.md-preview h2 {
+  font-size: 1.35em;
+}
+.md-preview h3 {
+  font-size: 1.15em;
+}
+.md-preview p,
+.md-preview ul,
+.md-preview ol,
+.md-preview blockquote,
+.md-preview pre,
+.md-preview table {
+  margin: 0.75em 0;
+}
+.md-preview ul,
+.md-preview ol {
+  padding-left: 1.4em;
+}
+.md-preview li {
+  margin: 0.25em 0;
+}
+.md-preview a {
+  color: #4f46e5;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-preview blockquote {
+  border-left: 3px solid #c7d2fe;
+  padding: 0.15em 0 0.15em 0.9em;
+  color: #475569;
+  background: #f8fafc;
+}
+.md-preview code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.9em;
+  background: #f1f5f9;
+  padding: 0.15em 0.4em;
+  border-radius: 0.3em;
+}
+.md-preview pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 0.9em 1em;
+  border-radius: 0.6em;
+  overflow-x: auto;
+}
+.md-preview pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: 0.85em;
+}
+.md-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.md-preview th,
+.md-preview td {
+  border: 1px solid #e2e8f0;
+  padding: 0.4em 0.65em;
+  text-align: left;
+}
+.md-preview th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+.md-preview hr {
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  margin: 1.25em 0;
+}
+.md-preview img {
+  max-width: 100%;
+  border-radius: 0.5em;
 }
 
-/* 手机：工具栏更易点、输入不触发 iOS 缩放（>=16px） */
 @media (max-width: 767px) {
-  .w-md-editor-toolbar {
-    padding: 4px 2px !important;
-  }
-  .w-md-editor-toolbar li > button {
-    width: 32px !important;
-    height: 32px !important;
-  }
-  .w-md-editor-text-pre,
-  .w-md-editor-text-input,
-  .w-md-editor-text {
-    font-size: 16px !important;
-    line-height: 1.65 !important;
-  }
-  .wmde-markdown {
-    font-size: 16px !important;
-    padding: 0 4px !important;
-  }
-  .w-md-editor-preview {
-    padding: 10px 12px !important;
+  .md-preview {
+    font-size: 16px;
   }
 }
 
