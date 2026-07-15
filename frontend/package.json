@@ -9,14 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@uiw/react-md-editor": "^4.0.5",
     "clsx": "^2.1.1",
     "lucide-react": "^0.488.0",
+    "marked": "^15.0.7",
     "mynote": "file:..",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.20",

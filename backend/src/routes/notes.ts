@@ -33,7 +33,36 @@ function getTagsForNote(noteId: string) {
     .all(noteId) as { id: string; name: string; color: string }[];
 }
 
-function mapNote(row: NoteRow, withContent = true) {
+/** 在正文中截取关键字附近片段，便于列表即时预览 */
+function snippetAround(text: string, query: string, radius = 55): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  if (!flat) return '';
+  const terms = query
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const lower = flat.toLowerCase();
+  let best = -1;
+  let matchLen = 0;
+  for (const t of terms) {
+    const i = lower.indexOf(t.toLowerCase());
+    if (i !== -1 && (best === -1 || i < best)) {
+      best = i;
+      matchLen = t.length;
+    }
+  }
+  if (best === -1) {
+    return flat.slice(0, 160);
+  }
+  const start = Math.max(0, best - radius);
+  const end = Math.min(flat.length, best + matchLen + radius);
+  let snip = flat.slice(start, end);
+  if (start > 0) snip = `…${snip}`;
+  if (end < flat.length) snip = `${snip}…`;
+  return snip;
+}
+
+function mapNote(row: NoteRow, withContent = true, searchQuery = '') {
   const tags = getTagsForNote(row.id);
   const base = {
     id: row.id,
@@ -48,10 +77,22 @@ function mapNote(row: NoteRow, withContent = true) {
     updatedAt: row.updated_at,
   };
   if (!withContent) {
-    return {
-      ...base,
-      preview: row.content.slice(0, 160).replace(/\s+/g, ' ').trim(),
-    };
+    const q = searchQuery.trim();
+    const body = row.content || '';
+    let preview: string;
+    if (q) {
+      const lowerBody = body.toLowerCase();
+      const hitBody = q
+        .split(/\s+/)
+        .filter(Boolean)
+        .some((t) => lowerBody.includes(t.toLowerCase()));
+      preview = hitBody
+        ? snippetAround(body, q)
+        : snippetAround(`${row.title} ${body}`, q);
+    } else {
+      preview = body.slice(0, 160).replace(/\s+/g, ' ').trim();
+    }
+    return { ...base, preview };
   }
   return {
     ...base,
@@ -119,8 +160,8 @@ noteRoutes.get('/', (c) => {
     params.push(notebookId);
   }
 
+  let searchIds: string[] = [];
   if (q) {
-    let ids: string[] = [];
     try {
       // 将查询拆成词，并加 * 前缀匹配；特殊字符转义
       const terms = q
@@ -137,34 +178,41 @@ noteRoutes.get('/', (c) => {
              ORDER BY rank`
           )
           .all(matchExpr) as { note_id: string }[];
-        ids = ftsRows.map((r) => r.note_id);
+        searchIds = ftsRows.map((r) => r.note_id);
       }
     } catch {
-      // FTS 语法失败时回退 LIKE
-      ids = [];
+      searchIds = [];
     }
-    if (ids.length === 0) {
+    if (searchIds.length === 0) {
       const like = `%${q}%`;
       const likeRows = db
         .prepare(
           `SELECT id FROM notes
-           WHERE user_id = ? AND (title LIKE ? OR content LIKE ?)`
+           WHERE user_id = ? AND (title LIKE ? OR content LIKE ?)
+           ORDER BY updated_at DESC`
         )
         .all(user.id, like, like) as { id: string }[];
-      ids = likeRows.map((r) => r.id);
+      searchIds = likeRows.map((r) => r.id);
     }
-    if (ids.length === 0) {
+    if (searchIds.length === 0) {
       return c.json([]);
     }
-    const placeholders = ids.map(() => '?').join(',');
+    const placeholders = searchIds.map(() => '?').join(',');
     sql += ` AND n.id IN (${placeholders}) `;
-    params.push(...ids);
+    params.push(...searchIds);
   }
 
   sql += ` ORDER BY n.updated_at DESC `;
 
-  const rows = db.prepare(sql).all(...params) as NoteRow[];
-  return c.json(rows.map((r) => mapNote(r, false)));
+  let rows = db.prepare(sql).all(...params) as NoteRow[];
+
+  // 还原 FTS 相关度顺序
+  if (q && searchIds.length > 0) {
+    const order = new Map(searchIds.map((id, i) => [id, i]));
+    rows = rows.slice().sort((a, b) => (order.get(a.id) ?? 9999) - (order.get(b.id) ?? 9999));
+  }
+
+  return c.json(rows.map((r) => mapNote(r, false, q)));
 });
 
 noteRoutes.get('/:id', (c) => {

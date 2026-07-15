@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import MDEditor from '@uiw/react-md-editor';
 import {
   ArrowLeft,
   Lock,
@@ -10,7 +9,7 @@ import {
 } from 'lucide-react';
 import type { Note, Notebook } from '../types';
 import { formatRelativeTime } from '../utils';
-import { useIsMobile } from '../hooks/useMediaQuery';
+import { MarkdownEditor } from './MarkdownEditor';
 
 type NotePatch = {
   title?: string;
@@ -43,7 +42,6 @@ export function NoteEditor({
   onClose,
 }: Props) {
   const [tagInput, setTagInput] = useState('');
-  const isMobile = useIsMobile();
   const isTrash = !!note.deletedAt;
   const readOnly = isTrash || !!note.isLocked;
 
@@ -61,11 +59,8 @@ export function NoteEditor({
     onChange({ tags });
   }
 
-  // 手机用单栏 edit/preview，避免 live 左右分屏挤成一团
-  const previewMode = readOnly ? 'preview' : isMobile ? 'edit' : 'live';
-
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col bg-white" data-color-mode="light">
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-white">
       <div className="flex items-center gap-1 border-b border-slate-200 px-2 py-2 safe-pt sm:gap-2 sm:px-4">
         <button
           type="button"
@@ -121,9 +116,13 @@ export function NoteEditor({
         )}
         {isTrash && (
           <>
-            <button type="button" className="btn-ghost shrink-0 !px-2 !py-2 text-xs" onClick={onRestore}>
+            <button
+              type="button"
+              className="btn-ghost shrink-0 !px-2 !py-2 text-xs"
+              onClick={onRestore}
+            >
               <RotateCcw className="h-4 w-4" />
-              <span className="hidden xs:inline sm:inline">恢复</span>
+              <span className="hidden sm:inline">恢复</span>
             </button>
             <button
               type="button"
@@ -186,18 +185,12 @@ export function NoteEditor({
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden safe-pb">
-        <MDEditor
+        <MarkdownEditor
           value={note.content}
-          height="100%"
-          preview={previewMode}
-          hideToolbar={readOnly}
-          visibleDragbar={false}
-          onChange={(v) => {
-            if (!readOnly) onChange({ content: v || '' });
-          }}
-          textareaProps={{
-            placeholder: '开始用 Markdown 书写…',
-            disabled: readOnly,
+          readOnly={readOnly}
+          placeholder="开始用 Markdown 书写…"
+          onChange={(content) => {
+            if (!readOnly) onChange({ content });
           }}
         />
       </div>

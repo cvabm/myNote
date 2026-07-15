@@ -1,16 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import { useAuth } from './context/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { Sidebar } from './components/Sidebar';
 import { NoteList } from './components/NoteList';
+import { NoteEditor } from './components/NoteEditor';
 import { SettingsModal } from './components/SettingsModal';
 import type { Note, NoteListItem, Notebook, Tag, ViewFilter } from './types';
-
-// Markdown 编辑器体积大，按需加载，缩短首屏 JS
-const NoteEditor = lazy(() =>
-  import('./components/NoteEditor').then((m) => ({ default: m.NoteEditor }))
-);
 
 export default function App() {
   const { user, loading, logout } = useAuth();
@@ -24,8 +20,10 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** 手机端侧边栏抽屉 */
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPatch = useRef<Record<string, unknown>>({});
+  const searchSeq = useRef(0);
 
   const loadMeta = useCallback(async () => {
     const [nbs, tgs] = await Promise.all([api.listNotebooks(), api.listTags()]);
@@ -44,9 +42,18 @@ export default function App() {
   }, [filter]);
 
   const loadNotes = useCallback(async () => {
-    const list = await api.listNotes(listParams);
-    setNotes(list);
-  }, [listParams]);
+    const isSearch = filter.type === 'search';
+    const seq = ++searchSeq.current;
+    if (isSearch) setSearching(true);
+    try {
+      const list = await api.listNotes(listParams);
+      // 丢弃过期的搜索响应，避免快速输入时乱序覆盖
+      if (seq !== searchSeq.current) return;
+      setNotes(list);
+    } finally {
+      if (seq === searchSeq.current) setSearching(false);
+    }
+  }, [listParams, filter.type]);
 
   useEffect(() => {
     if (!user) return;
@@ -55,11 +62,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    void loadNotes()
-      .then(() => {
-        // keep selection if still present
-      })
-      .catch(console.error);
+    void loadNotes().catch(console.error);
   }, [user, loadNotes]);
 
   useEffect(() => {
@@ -274,10 +277,14 @@ export default function App() {
         onDeleteNotebook={handleDeleteNotebook}
         onCreateNote={handleCreateNote}
         onSearch={(q) => {
-          if (!q) setFilter({ type: 'all' });
-          else setFilter({ type: 'search', q });
+          if (!q) {
+            // 清空搜索：回到全部（若原本在搜索）
+            setFilter((prev) => (prev.type === 'search' ? { type: 'all' } : prev));
+          } else {
+            setFilter({ type: 'search', q });
+          }
           setSelectedId(null);
-          setSidebarOpen(false);
+          // 即时搜索不关闭手机侧栏，方便继续改关键字
         }}
         onLogout={logout}
         onOpenSettings={() => {
@@ -287,39 +294,36 @@ export default function App() {
         username={user.displayName || user.username}
         mobileOpen={sidebarOpen}
         onMobileClose={() => setSidebarOpen(false)}
+        searching={searching}
       />
 
       <div className="flex min-w-0 flex-1 overflow-hidden">
         <NoteList
           notes={notes}
           selectedId={selectedId}
-          onSelect={setSelectedId}
+          onSelect={(id) => {
+            setSelectedId(id);
+            setSidebarOpen(false);
+          }}
           isTrash={filter.type === 'trash'}
           onEmptyTrash={handleEmptyTrash}
           onOpenSidebar={() => setSidebarOpen(true)}
           onCreateNote={handleCreateNote}
           mobileHidden={mobileShowEditor}
+          highlightQuery={filter.type === 'search' ? filter.q : ''}
+          searching={searching}
         />
-        {/* 只有真正打开笔记时才挂载编辑器 → 才下载 vendor-md（~1MB） */}
         {selectedId && current ? (
-          <Suspense
-            fallback={
-              <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400">
-                编辑器加载中…
-              </div>
-            }
-          >
-            <NoteEditor
-              note={current}
-              notebooks={notebooks}
-              saving={saving}
-              onChange={handleNoteChange}
-              onTrash={handleTrash}
-              onRestore={handleRestore}
-              onDeleteForever={handleDeleteForever}
-              onClose={() => setSelectedId(null)}
-            />
-          </Suspense>
+          <NoteEditor
+            note={current}
+            notebooks={notebooks}
+            saving={saving}
+            onChange={handleNoteChange}
+            onTrash={handleTrash}
+            onRestore={handleRestore}
+            onDeleteForever={handleDeleteForever}
+            onClose={() => setSelectedId(null)}
+          />
         ) : selectedId ? (
           <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400">
             加载笔记…
