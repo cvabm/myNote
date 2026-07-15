@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import { useAuth } from './context/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { Sidebar } from './components/Sidebar';
 import { NoteList } from './components/NoteList';
-import { NoteEditor } from './components/NoteEditor';
 import { SettingsModal } from './components/SettingsModal';
 import type { Note, NoteListItem, Notebook, Tag, ViewFilter } from './types';
+
+// Markdown 编辑器体积大，按需加载，缩短首屏 JS
+const NoteEditor = lazy(() =>
+  import('./components/NoteEditor').then((m) => ({ default: m.NoteEditor }))
+);
 
 export default function App() {
   const { user, loading, logout } = useAuth();
@@ -18,6 +22,8 @@ export default function App() {
   const [filter, setFilter] = useState<ViewFilter>({ type: 'all' });
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** 手机端侧边栏抽屉 */
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPatch = useRef<Record<string, unknown>>({});
 
@@ -241,8 +247,20 @@ export default function App() {
 
   if (!user) return <LoginPage />;
 
+  const mobileShowEditor = !!selectedId;
+
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="relative flex h-full overflow-hidden">
+      {/* 手机侧边栏遮罩 */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[1px] md:hidden"
+          aria-label="关闭菜单"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       <Sidebar
         notebooks={notebooks}
         tags={tags}
@@ -250,6 +268,7 @@ export default function App() {
         onFilterChange={(f) => {
           setFilter(f);
           setSelectedId(null);
+          setSidebarOpen(false);
         }}
         onCreateNotebook={handleCreateNotebook}
         onDeleteNotebook={handleDeleteNotebook}
@@ -258,28 +277,61 @@ export default function App() {
           if (!q) setFilter({ type: 'all' });
           else setFilter({ type: 'search', q });
           setSelectedId(null);
+          setSidebarOpen(false);
         }}
         onLogout={logout}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => {
+          setSettingsOpen(true);
+          setSidebarOpen(false);
+        }}
         username={user.displayName || user.username}
+        mobileOpen={sidebarOpen}
+        onMobileClose={() => setSidebarOpen(false)}
       />
-      <NoteList
-        notes={notes}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        isTrash={filter.type === 'trash'}
-        onEmptyTrash={handleEmptyTrash}
-      />
-      <NoteEditor
-        note={current}
-        notebooks={notebooks}
-        saving={saving}
-        onChange={handleNoteChange}
-        onTrash={handleTrash}
-        onRestore={handleRestore}
-        onDeleteForever={handleDeleteForever}
-        onClose={() => setSelectedId(null)}
-      />
+
+      <div className="flex min-w-0 flex-1 overflow-hidden">
+        <NoteList
+          notes={notes}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          isTrash={filter.type === 'trash'}
+          onEmptyTrash={handleEmptyTrash}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          onCreateNote={handleCreateNote}
+          mobileHidden={mobileShowEditor}
+        />
+        {/* 只有真正打开笔记时才挂载编辑器 → 才下载 vendor-md（~1MB） */}
+        {selectedId && current ? (
+          <Suspense
+            fallback={
+              <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400">
+                编辑器加载中…
+              </div>
+            }
+          >
+            <NoteEditor
+              note={current}
+              notebooks={notebooks}
+              saving={saving}
+              onChange={handleNoteChange}
+              onTrash={handleTrash}
+              onRestore={handleRestore}
+              onDeleteForever={handleDeleteForever}
+              onClose={() => setSelectedId(null)}
+            />
+          </Suspense>
+        ) : selectedId ? (
+          <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400">
+            加载笔记…
+          </div>
+        ) : (
+          <div className="hidden h-full min-w-0 flex-1 flex-col items-center justify-center bg-white text-slate-400 md:flex">
+            <div className="mb-2 text-5xl opacity-20">✎</div>
+            <p className="px-6 text-center text-sm">选择或新建一篇笔记开始书写</p>
+          </div>
+        )}
+      </div>
+
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );

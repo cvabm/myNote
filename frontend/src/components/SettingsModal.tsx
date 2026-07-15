@@ -34,11 +34,17 @@ export function SettingsModal({ open, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default"
+        aria-label="关闭"
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-full max-w-md rounded-t-2xl bg-white shadow-2xl safe-pb sm:rounded-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
           <h2 className="text-base font-semibold">设置</h2>
-          <button type="button" className="btn-ghost !p-1.5" onClick={onClose}>
+          <button type="button" className="btn-ghost !p-2" onClick={onClose}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -48,7 +54,7 @@ export function SettingsModal({ open, onClose }: Props) {
             <span className="mb-1 block text-xs text-slate-500">原密码</span>
             <input
               type="password"
-              className="input"
+              className="input text-base sm:text-sm"
               value={oldPassword}
               onChange={(e) => setOldPassword(e.target.value)}
               required
@@ -58,7 +64,7 @@ export function SettingsModal({ open, onClose }: Props) {
             <span className="mb-1 block text-xs text-slate-500">新密码（至少 6 位）</span>
             <input
               type="password"
-              className="input"
+              className="input text-base sm:text-sm"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               minLength={6}
@@ -67,7 +73,7 @@ export function SettingsModal({ open, onClose }: Props) {
           </label>
           {msg && <div className="text-sm text-emerald-600">{msg}</div>}
           {err && <div className="text-sm text-red-600">{err}</div>}
-          <button type="submit" className="btn-primary" disabled={loading}>
+          <button type="submit" className="btn-primary w-full sm:w-auto" disabled={loading}>
             {loading ? '保存中…' : '保存密码'}
           </button>
         </form>
