@@ -36,6 +36,9 @@ export default defineConfig({
           if (id.includes('node_modules/marked')) {
             return 'vendor-marked';
           }
+          if (id.includes('node_modules/highlight.js')) {
+            return 'vendor-hljs';
+          }
         },
       },
     },

@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from 'react';
 import clsx from 'clsx';
-import { marked } from 'marked';
 import {
   Bold,
   Code,
@@ -27,6 +26,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import { useIsMobile } from '../hooks/useMediaQuery';
+import { renderMarkdown } from '../lib/markdown';
 
 export type EditorMode = 'edit' | 'preview' | 'split';
 
@@ -38,27 +38,6 @@ type Props = {
   /** 打开时的默认模式；新建笔记可传 split，点开已有笔记用 preview */
   initialMode?: EditorMode;
 };
-
-marked.setOptions({
-  gfm: true,
-  breaks: true,
-});
-
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/** 基础消毒：去掉 script / on* 事件，保留常见 Markdown 标签 */
-function sanitizeHtml(html: string) {
-  return html
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/javascript:/gi, '');
-}
 
 type Tool = {
   title: string;
@@ -142,6 +121,49 @@ function isImageFile(file: File) {
   return /^image\/(jpeg|png|gif|webp)$/i.test(file.type);
 }
 
+/**
+ * 复制文本。HTTP 非 localhost 下 navigator.clipboard 常为 undefined，需 execCommand 降级。
+ */
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // 继续降级
+    }
+  }
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function flashCopyButton(btn: HTMLButtonElement, ok: boolean) {
+  const label = btn.textContent || '复制';
+  btn.textContent = ok ? '已复制' : '失败';
+  if (ok) btn.classList.add('is-copied');
+  window.setTimeout(() => {
+    btn.textContent = label === '已复制' || label === '失败' ? '复制' : label;
+    btn.classList.remove('is-copied');
+  }, 1500);
+}
+
 export function MarkdownEditor({
   value,
   onChange,
@@ -161,14 +183,7 @@ export function MarkdownEditor({
 
   const effectiveMode: EditorMode = readOnly ? 'preview' : mode;
 
-  const html = useMemo(() => {
-    try {
-      const raw = marked.parse(value || '', { async: false }) as string;
-      return sanitizeHtml(raw);
-    } catch {
-      return `<pre>${escapeHtml(value || '')}</pre>`;
-    }
-  }, [value]);
+  const html = useMemo(() => renderMarkdown(value || ''), [value]);
 
   const runTool = useCallback(
     (fn: (ta: HTMLTextAreaElement) => void) => {
@@ -434,6 +449,15 @@ export function MarkdownEditor({
               effectiveMode === 'preview' && 'flex-1'
             )}
             dangerouslySetInnerHTML={{ __html: html || '<p class="text-slate-400">暂无内容</p>' }}
+            onClick={(e) => {
+              const btn = (e.target as HTMLElement).closest('.code-copy-btn');
+              if (!btn || !(btn instanceof HTMLButtonElement)) return;
+              e.preventDefault();
+              const block = btn.closest('.code-block');
+              const raw = block?.querySelector('textarea.code-raw') as HTMLTextAreaElement | null;
+              const text = raw?.value ?? '';
+              void copyTextToClipboard(text).then((ok) => flashCopyButton(btn, ok));
+            }}
           />
         )}
       </div>
