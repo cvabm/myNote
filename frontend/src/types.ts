@@ -22,7 +22,6 @@ export type NoteListItem = {
   title: string;
   preview?: string;
   isFavorite: boolean;
-  isLocked: boolean;
   deletedAt: string | null;
   sortOrder: number;
   createdAt: string;

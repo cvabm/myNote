@@ -1,10 +1,8 @@
 import {
   ArrowLeft,
-  Lock,
   RotateCcw,
   Star,
   Trash2,
-  Unlock,
 } from 'lucide-react';
 import type { Note, Notebook } from '../types';
 import { formatRelativeTime } from '../utils';
@@ -15,7 +13,6 @@ type NotePatch = {
   content?: string;
   notebookId?: string | null;
   isFavorite?: boolean;
-  isLocked?: boolean;
 };
 
 type Props = {
@@ -43,7 +40,7 @@ export function NoteEditor({
   initialEditorMode = 'preview',
 }: Props) {
   const isTrash = !!note.deletedAt;
-  const readOnly = isTrash || !!note.isLocked;
+  const readOnly = isTrash;
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col bg-white">
@@ -81,14 +78,6 @@ export function NoteEditor({
               <Star
                 className={`h-4 w-4 ${note.isFavorite ? 'fill-amber-400 text-amber-400' : ''}`}
               />
-            </button>
-            <button
-              type="button"
-              className="btn-ghost shrink-0 !p-2"
-              title={note.isLocked ? '解锁' : '锁定'}
-              onClick={() => onChange({ isLocked: !note.isLocked })}
-            >
-              {note.isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
             </button>
             <button
               type="button"
@@ -144,11 +133,6 @@ export function NoteEditor({
         {isTrash && (
           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
             回收站中 · 只读
-          </span>
-        )}
-        {note.isLocked && !isTrash && (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-            已锁定
           </span>
         )}
       </div>

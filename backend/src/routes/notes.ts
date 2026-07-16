@@ -56,7 +56,6 @@ function mapNote(row: NoteRow, withContent = true, searchQuery = '') {
     notebookId: row.notebook_id,
     title: row.title,
     isFavorite: !!row.is_favorite,
-    isLocked: !!row.is_locked,
     deletedAt: row.deleted_at,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
@@ -219,27 +218,6 @@ noteRoutes.patch('/:id', async (c) => {
 
   const body = await c.req.json().catch(() => ({}));
 
-  const unlockOnly =
-    existing.is_locked &&
-    body.isLocked === false &&
-    body.title === undefined &&
-    body.content === undefined &&
-    body.contentHtml === undefined &&
-    body.notebookId === undefined;
-
-  const favoriteOnly =
-    existing.is_locked &&
-    body.isFavorite !== undefined &&
-    body.title === undefined &&
-    body.content === undefined &&
-    body.contentHtml === undefined &&
-    body.notebookId === undefined &&
-    body.isLocked === undefined;
-
-  if (existing.is_locked && !unlockOnly && !favoriteOnly) {
-    return c.json({ error: '笔记已锁定' }, 400);
-  }
-
   const title =
     body.title !== undefined
       ? String(body.title).trim() || '未命名笔记'
@@ -259,16 +237,14 @@ noteRoutes.patch('/:id', async (c) => {
   }
   const isFavorite =
     body.isFavorite !== undefined ? (body.isFavorite ? 1 : 0) : existing.is_favorite;
-  const isLocked =
-    body.isLocked !== undefined ? (body.isLocked ? 1 : 0) : existing.is_locked;
 
   const tx = db.transaction(() => {
     db.prepare(
       `UPDATE notes
        SET title = ?, content = ?, content_html = ?, notebook_id = ?,
-           is_favorite = ?, is_locked = ?, updated_at = datetime('now')
+           is_favorite = ?, updated_at = datetime('now')
        WHERE id = ? AND user_id = ?`
-    ).run(title, content, contentHtml, notebookId, isFavorite, isLocked, id, user.id);
+    ).run(title, content, contentHtml, notebookId, isFavorite, id, user.id);
     syncNoteFts(id, title, content);
   });
   tx();
