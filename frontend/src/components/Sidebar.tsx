@@ -9,18 +9,16 @@ import {
   Plus,
   Search,
   Star,
-  Tag,
   Trash2,
   FileText,
   Settings,
   X,
 } from 'lucide-react';
-import type { Notebook, Tag as TagType, ViewFilter } from '../types';
+import type { Notebook, ViewFilter } from '../types';
 import { buildNotebookTree, type NotebookTreeNode } from '../utils';
 
 type Props = {
   notebooks: Notebook[];
-  tags: TagType[];
   filter: ViewFilter;
   onFilterChange: (f: ViewFilter) => void;
   onCreateNotebook: (parentId?: string | null) => void;
@@ -124,7 +122,6 @@ function NotebookNode({
 
 export function Sidebar({
   notebooks,
-  tags,
   filter,
   onFilterChange,
   onCreateNotebook,
@@ -315,29 +312,6 @@ export function Sidebar({
             onDelete={onDeleteNotebook}
           />
         ))}
-
-        {tags.length > 0 && (
-          <>
-            <div className="mb-1 mt-4 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              标签
-            </div>
-            {tags.map((tag) => (
-              <button
-                key={tag.id}
-                type="button"
-                className={clsx(
-                  'sidebar-item',
-                  filter.type === 'tag' && filter.id === tag.id && 'sidebar-item-active'
-                )}
-                onClick={() => selectFilter({ type: 'tag', id: tag.id })}
-              >
-                <Tag className="h-4 w-4" style={{ color: tag.color }} />
-                <span className="truncate">{tag.name}</span>
-                <span className="ml-auto text-xs text-slate-400">{tag.noteCount ?? 0}</span>
-              </button>
-            ))}
-          </>
-        )}
       </div>
 
       <div className="flex items-center gap-1 border-t border-slate-100 p-2 safe-pb">

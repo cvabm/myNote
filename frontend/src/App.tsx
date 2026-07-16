@@ -6,19 +6,17 @@ import { Sidebar } from './components/Sidebar';
 import { NoteList } from './components/NoteList';
 import { NoteEditor } from './components/NoteEditor';
 import { SettingsModal } from './components/SettingsModal';
-import type { Note, NoteListItem, Notebook, Tag, ViewFilter } from './types';
+import type { Note, NoteListItem, Notebook, ViewFilter } from './types';
 
 export default function App() {
   const { user, loading, logout } = useAuth();
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
   const [notes, setNotes] = useState<NoteListItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [current, setCurrent] = useState<Note | null>(null);
   const [filter, setFilter] = useState<ViewFilter>({ type: 'all' });
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  /** 手机端侧边栏抽屉 */
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -26,9 +24,8 @@ export default function App() {
   const searchSeq = useRef(0);
 
   const loadMeta = useCallback(async () => {
-    const [nbs, tgs] = await Promise.all([api.listNotebooks(), api.listTags()]);
+    const nbs = await api.listNotebooks();
     setNotebooks(nbs);
-    setTags(tgs);
   }, []);
 
   const listParams = useMemo(() => {
@@ -36,7 +33,6 @@ export default function App() {
     if (filter.type === 'notebook') params.notebookId = filter.id;
     if (filter.type === 'favorite') params.favorite = '1';
     if (filter.type === 'trash') params.trash = '1';
-    if (filter.type === 'tag') params.tagId = filter.id;
     if (filter.type === 'search') params.q = filter.q;
     return params;
   }, [filter]);
@@ -47,7 +43,6 @@ export default function App() {
     if (isSearch) setSearching(true);
     try {
       const list = await api.listNotes(listParams);
-      // 丢弃过期的搜索响应，避免快速输入时乱序覆盖
       if (seq !== searchSeq.current) return;
       setNotes(list);
     } finally {
@@ -169,16 +164,8 @@ export default function App() {
     notebookId?: string | null;
     isFavorite?: boolean;
     isLocked?: boolean;
-    tags?: string[];
   }) {
     if (!current) return;
-    const nextTags: Tag[] = patch.tags
-      ? patch.tags.map((tagName, i) => ({
-          id: `tmp-${i}`,
-          name: tagName,
-          color: '#64748b',
-        }))
-      : current.tags;
 
     setCurrent({
       ...current,
@@ -187,7 +174,6 @@ export default function App() {
       notebookId: patch.notebookId !== undefined ? patch.notebookId : current.notebookId,
       isFavorite: patch.isFavorite ?? current.isFavorite,
       isLocked: patch.isLocked ?? current.isLocked,
-      tags: nextTags,
     });
 
     const apiPatch: Record<string, unknown> = {};
@@ -196,7 +182,6 @@ export default function App() {
     if (patch.notebookId !== undefined) apiPatch.notebookId = patch.notebookId;
     if (patch.isFavorite !== undefined) apiPatch.isFavorite = patch.isFavorite;
     if (patch.isLocked !== undefined) apiPatch.isLocked = patch.isLocked;
-    if (patch.tags !== undefined) apiPatch.tags = patch.tags;
     scheduleSave(apiPatch);
   }
 
@@ -254,7 +239,6 @@ export default function App() {
 
   return (
     <div className="relative flex h-full overflow-hidden">
-      {/* 手机侧边栏遮罩 */}
       {sidebarOpen && (
         <button
           type="button"
@@ -266,7 +250,6 @@ export default function App() {
 
       <Sidebar
         notebooks={notebooks}
-        tags={tags}
         filter={filter}
         onFilterChange={(f) => {
           setFilter(f);
@@ -278,13 +261,11 @@ export default function App() {
         onCreateNote={handleCreateNote}
         onSearch={(q) => {
           if (!q) {
-            // 清空搜索：回到全部（若原本在搜索）
             setFilter((prev) => (prev.type === 'search' ? { type: 'all' } : prev));
           } else {
             setFilter({ type: 'search', q });
           }
           setSelectedId(null);
-          // 即时搜索不关闭手机侧栏，方便继续改关键字
         }}
         onLogout={logout}
         onOpenSettings={() => {
@@ -336,7 +317,14 @@ export default function App() {
         )}
       </div>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onImported={() => {
+          void loadMeta();
+          void loadNotes();
+        }}
+      />
     </div>
   );
 }

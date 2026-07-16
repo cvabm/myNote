@@ -16,14 +16,6 @@ export type Notebook = {
   updatedAt: string;
 };
 
-export type Tag = {
-  id: string;
-  name: string;
-  color: string;
-  noteCount?: number;
-  createdAt?: string;
-};
-
 export type NoteListItem = {
   id: string;
   notebookId: string | null;
@@ -33,7 +25,6 @@ export type NoteListItem = {
   isLocked: boolean;
   deletedAt: string | null;
   sortOrder: number;
-  tags: Tag[];
   createdAt: string;
   updatedAt: string;
 };
@@ -48,5 +39,4 @@ export type ViewFilter =
   | { type: 'notebook'; id: string }
   | { type: 'favorite' }
   | { type: 'trash' }
-  | { type: 'tag'; id: string }
   | { type: 'search'; q: string };

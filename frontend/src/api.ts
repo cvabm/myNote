@@ -1,4 +1,4 @@
-import type { Note, NoteListItem, Notebook, Tag, User } from './types';
+import type { Note, NoteListItem, Notebook, User } from './types';
 
 const TOKEN_KEY = 'mynote_token';
 
@@ -74,7 +74,7 @@ export const api = {
   getNote(id: string) {
     return request<Note>(`/api/notes/${id}`);
   },
-  createNote(data: { title?: string; content?: string; notebookId?: string | null; tags?: string[] }) {
+  createNote(data: { title?: string; content?: string; notebookId?: string | null }) {
     return request<Note>('/api/notes', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -88,7 +88,6 @@ export const api = {
       notebookId: string | null;
       isFavorite: boolean;
       isLocked: boolean;
-      tags: string[];
     }>
   ) {
     return request<Note>(`/api/notes/${id}`, {
@@ -107,18 +106,5 @@ export const api = {
   },
   emptyTrash() {
     return request<{ ok: boolean; count: number }>('/api/notes?trash=1', { method: 'DELETE' });
-  },
-
-  listTags() {
-    return request<Tag[]>('/api/tags');
-  },
-  createTag(name: string, color?: string) {
-    return request<Tag>('/api/tags', {
-      method: 'POST',
-      body: JSON.stringify({ name, color }),
-    });
-  },
-  deleteTag(id: string) {
-    return request<{ ok: boolean }>(`/api/tags/${id}`, { method: 'DELETE' });
   },
 };
