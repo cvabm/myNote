@@ -26,7 +26,11 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import { useIsMobile } from '../hooks/useMediaQuery';
-import { renderMarkdown } from '../lib/markdown';
+import {
+  removeImageFromMarkdown,
+  renderMarkdown,
+  uploadNameFromSrc,
+} from '../lib/markdown';
 
 export type EditorMode = 'edit' | 'preview' | 'split';
 
@@ -183,7 +187,10 @@ export function MarkdownEditor({
 
   const effectiveMode: EditorMode = readOnly ? 'preview' : mode;
 
-  const html = useMemo(() => renderMarkdown(value || ''), [value]);
+  const html = useMemo(
+    () => renderMarkdown(value || '', { showImageDelete: !readOnly }),
+    [value, readOnly]
+  );
 
   const runTool = useCallback(
     (fn: (ta: HTMLTextAreaElement) => void) => {
@@ -192,6 +199,24 @@ export function MarkdownEditor({
       fn(ta);
     },
     [readOnly]
+  );
+
+  const handleDeleteImage = useCallback(
+    async (src: string) => {
+      if (readOnly || !src) return;
+      if (!window.confirm('从笔记中删除此图片？本地上传的文件也会一并删除。')) return;
+      onChange(removeImageFromMarkdown(value, src));
+      const name = uploadNameFromSrc(src);
+      if (name) {
+        try {
+          await api.deleteUpload(name);
+        } catch (e) {
+          // 正文已删；文件删失败仅提示
+          console.error(e);
+        }
+      }
+    },
+    [readOnly, value, onChange]
   );
 
   const uploadAndInsert = useCallback(
@@ -458,13 +483,27 @@ export function MarkdownEditor({
             )}
             dangerouslySetInnerHTML={{ __html: html || '<p class="text-slate-400">暂无内容</p>' }}
             onClick={(e) => {
-              const btn = (e.target as HTMLElement).closest('.code-copy-btn');
-              if (!btn || !(btn instanceof HTMLButtonElement)) return;
-              e.preventDefault();
-              const block = btn.closest('.code-block');
-              const raw = block?.querySelector('textarea.code-raw') as HTMLTextAreaElement | null;
-              const text = raw?.value ?? '';
-              void copyTextToClipboard(text).then((ok) => flashCopyButton(btn, ok));
+              const target = e.target as HTMLElement;
+
+              const copyBtn = target.closest('.code-copy-btn');
+              if (copyBtn instanceof HTMLButtonElement) {
+                e.preventDefault();
+                const block = copyBtn.closest('.code-block');
+                const raw = block?.querySelector(
+                  'textarea.code-raw'
+                ) as HTMLTextAreaElement | null;
+                const text = raw?.value ?? '';
+                void copyTextToClipboard(text).then((ok) => flashCopyButton(copyBtn, ok));
+                return;
+              }
+
+              const delBtn = target.closest('.md-img-delete');
+              if (delBtn instanceof HTMLButtonElement) {
+                e.preventDefault();
+                e.stopPropagation();
+                const src = delBtn.getAttribute('data-src') || '';
+                void handleDeleteImage(src);
+              }
             }}
           />
         )}

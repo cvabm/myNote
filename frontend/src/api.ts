@@ -122,4 +122,12 @@ export const api = {
     if (!data.url) throw new Error('上传失败：未返回地址');
     return data as { url: string; name: string; size: number };
   },
+
+  /** 删除 data/uploads 下的图片文件 */
+  deleteUpload(name: string) {
+    const safe = name.replace(/^.*[/\\]/, '');
+    return request<{ ok: boolean }>(`/api/uploads/${encodeURIComponent(safe)}`, {
+      method: 'DELETE',
+    });
+  },
 };
