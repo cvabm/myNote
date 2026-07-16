@@ -8,6 +8,7 @@ services:
     environment:
       PORT: 3001
       DB_PATH: /app/data/mynote.db
+      UPLOAD_DIR: /app/data/uploads
       JWT_SECRET: ${JWT_SECRET:-please-change-me-to-a-long-random-string}
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASS: ${ADMIN_PASS:-admin123}

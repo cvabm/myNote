@@ -11,6 +11,7 @@
 | 用户登录 | JWT 鉴权，可修改密码 |
 | 多级笔记本 | 无限层级树形组织 |
 | Markdown 编辑 | 预览 / 编辑 / 分栏，自动保存 |
+| 图片 | 工具栏上传、粘贴、拖拽；存于 `data/uploads` |
 | 收藏 / 锁定 | 快速收藏，锁定后只读 |
 | 回收站 | 软删除、恢复、永久删除、清空 |
 | 全文搜索 | 即时搜索、关键字高亮（SQLite FTS5） |
@@ -94,6 +95,8 @@ myNote/
 | POST | `/api/auth/change-password` | 改密 |
 | CRUD | `/api/notebooks` | 笔记本 |
 | CRUD | `/api/notes` | 笔记（含 trash/restore） |
+| POST | `/api/uploads` | 上传图片（需登录） |
+| GET | `/uploads/*` | 访问已上传图片 |
 | GET | `/api/health` | 健康检查 |
 
 ## 从 Flatnotes / Markdown 导入

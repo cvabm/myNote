@@ -119,7 +119,18 @@ export default function App() {
 
   async function handleCreateNote() {
     try {
-      const notebookId = filter.type === 'notebook' ? filter.id : null;
+      // 当前在某笔记本视图 → 用该本；否则默认「默认笔记本」
+      let notebookId: string | null = null;
+      if (filter.type === 'notebook') {
+        notebookId = filter.id;
+      } else {
+        const def = notebooks.find((n) => n.name === '默认笔记本');
+        notebookId =
+          def?.id ??
+          notebooks.find((n) => !n.parentId)?.id ??
+          notebooks[0]?.id ??
+          null;
+      }
       const note = await api.createNote({
         title: '未命名笔记',
         content: '',

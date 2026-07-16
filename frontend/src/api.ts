@@ -107,4 +107,20 @@ export const api = {
   emptyTrash() {
     return request<{ ok: boolean; count: number }>('/api/notes?trash=1', { method: 'DELETE' });
   },
+
+  /** 上传笔记图片，返回可写入 Markdown 的 url */
+  async uploadImage(file: File) {
+    const headers = new Headers();
+    const token = getToken();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const body = new FormData();
+    body.append('file', file);
+    const res = await fetch('/api/uploads', { method: 'POST', headers, body });
+    const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string };
+    if (!res.ok) {
+      throw new Error(data.error || `上传失败 (${res.status})`);
+    }
+    if (!data.url) throw new Error('上传失败：未返回地址');
+    return data as { url: string; name: string; size: number };
+  },
 };

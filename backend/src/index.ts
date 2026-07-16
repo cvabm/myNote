@@ -10,11 +10,14 @@ import { initDb } from './db.js';
 import { authRoutes } from './routes/auth.js';
 import { notebookRoutes } from './routes/notebooks.js';
 import { noteRoutes } from './routes/notes.js';
+import { uploadRoutes } from './routes/uploads.js';
 
 const PORT = Number(process.env.PORT || 3001);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || './data/uploads');
 
 initDb();
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const app = new Hono();
 
@@ -33,6 +36,17 @@ app.get('/api/health', (c) => c.json({ ok: true, name: 'MyNote', version: '1.0.0
 app.route('/api/auth', authRoutes);
 app.route('/api/notebooks', notebookRoutes);
 app.route('/api/notes', noteRoutes);
+app.route('/api/uploads', uploadRoutes);
+
+// 笔记图片（文件名随机，GET 无需登录以便 Markdown 预览）
+app.get('/uploads/*', (c) => {
+  const rel = c.req.path.replace(/^\/uploads\/?/, '');
+  if (!rel || rel.includes('..')) return c.text('Forbidden', 403);
+  const filePath = path.join(UPLOAD_DIR, path.basename(rel));
+  if (!filePath.startsWith(UPLOAD_DIR)) return c.text('Forbidden', 403);
+  const res = sendFile(c, filePath, { immutable: true });
+  return res ?? c.text('Not Found', 404);
+});
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -44,6 +58,7 @@ const MIME: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',

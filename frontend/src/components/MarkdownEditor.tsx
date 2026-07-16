@@ -1,4 +1,13 @@
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import clsx from 'clsx';
 import { marked } from 'marked';
 import {
@@ -7,13 +16,16 @@ import {
   Columns2,
   Eye,
   Heading2,
+  Image as ImageIcon,
   Italic,
   Link as LinkIcon,
   List,
   ListOrdered,
+  Loader2,
   PenLine,
   Quote,
 } from 'lucide-react';
+import { api } from '../api';
 import { useIsMobile } from '../hooks/useMediaQuery';
 
 export type EditorMode = 'edit' | 'preview' | 'split';
@@ -98,13 +110,44 @@ function applyLinePrefix(
   });
 }
 
+function insertSnippet(
+  ta: HTMLTextAreaElement | null,
+  value: string,
+  snippet: string,
+  onChange: (v: string) => void
+) {
+  if (!ta) {
+    const needsNl = value.length > 0 && !value.endsWith('\n');
+    onChange(value + (needsNl ? '\n' : '') + snippet);
+    return;
+  }
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const text = ta.value;
+  const before = text.slice(0, start);
+  const pad =
+    before.length > 0 && !before.endsWith('\n') && !snippet.startsWith('\n') ? '\n' : '';
+  const next = before + pad + snippet + text.slice(end);
+  onChange(next);
+  requestAnimationFrame(() => {
+    ta.focus();
+    const pos = start + pad.length + snippet.length;
+    ta.setSelectionRange(pos, pos);
+  });
+}
+
+function isImageFile(file: File) {
+  return /^image\/(jpeg|png|gif|webp)$/i.test(file.type);
+}
+
 export function MarkdownEditor({ value, onChange, readOnly, placeholder }: Props) {
   const isMobile = useIsMobile();
   const taRef = useRef<HTMLTextAreaElement>(null);
-  // 默认预览；需要改内容时再切「编辑 / 分栏」
+  const fileRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<EditorMode>('preview');
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
-  // 只读时强制预览
   const effectiveMode: EditorMode = readOnly ? 'preview' : mode;
 
   const html = useMemo(() => {
@@ -123,6 +166,34 @@ export function MarkdownEditor({ value, onChange, readOnly, placeholder }: Props
       fn(ta);
     },
     [readOnly]
+  );
+
+  const uploadAndInsert = useCallback(
+    async (file: File) => {
+      if (readOnly || uploading) return;
+      if (!isImageFile(file)) {
+        alert('仅支持 JPEG / PNG / GIF / WebP 图片');
+        return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        alert('图片不能超过 8MB');
+        return;
+      }
+      setUploading(true);
+      try {
+        const { url } = await api.uploadImage(file);
+        const alt = file.name.replace(/\.[^.]+$/, '') || 'image';
+        const snippet = `![${alt}](${url})\n`;
+        insertSnippet(taRef.current, value, snippet, onChange);
+        // 上传后若在预览模式，切到编辑或分栏更直观；保持预览也可（内容已写入）
+        if (mode === 'preview') setMode(isMobile ? 'edit' : 'split');
+      } catch (e) {
+        alert(e instanceof Error ? e.message : '上传失败');
+      } finally {
+        setUploading(false);
+      }
+    },
+    [readOnly, uploading, value, onChange, mode, isMobile]
   );
 
   const tools: Tool[] = useMemo(
@@ -194,11 +265,61 @@ export function MarkdownEditor({ value, onChange, readOnly, placeholder }: Props
     }
   }
 
+  async function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    if (readOnly) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          await uploadAndInsert(file);
+          return;
+        }
+      }
+    }
+  }
+
+  function onDragOver(e: DragEvent) {
+    if (readOnly) return;
+    if ([...e.dataTransfer.types].includes('Files')) {
+      e.preventDefault();
+      setDragOver(true);
+    }
+  }
+
+  function onDragLeave(e: DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+  }
+
+  async function onDrop(e: DragEvent) {
+    if (readOnly) return;
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files || []).filter(isImageFile);
+    for (const f of files) {
+      await uploadAndInsert(f);
+    }
+  }
+
   const showEdit = effectiveMode === 'edit' || effectiveMode === 'split';
   const showPreview = effectiveMode === 'preview' || effectiveMode === 'split';
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      className={clsx('relative flex h-full min-h-0 flex-col', dragOver && 'ring-2 ring-inset ring-brand-400')}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => void onDrop(e)}
+    >
+      {dragOver && !readOnly && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-brand-50/80 text-sm font-medium text-brand-700">
+          松开以上传图片
+        </div>
+      )}
+
       {!readOnly && (
         <div className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 bg-slate-50 px-1.5 py-1">
           {tools.map((t) => (
@@ -212,6 +333,31 @@ export function MarkdownEditor({ value, onChange, readOnly, placeholder }: Props
               {t.icon}
             </button>
           ))}
+          <button
+            type="button"
+            title="插入图片"
+            className="btn-ghost !rounded-md !p-2"
+            disabled={uploading}
+            onClick={() => fileRef.current?.click()}
+          >
+            {uploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ImageIcon className="h-4 w-4" />
+            )}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            className="hidden"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            disabled={uploading}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) void uploadAndInsert(f);
+            }}
+          />
           <span className="mx-1 h-5 w-px bg-slate-200" />
           <button
             type="button"
@@ -263,10 +409,11 @@ export function MarkdownEditor({ value, onChange, readOnly, placeholder }: Props
             )}
             value={value}
             disabled={readOnly}
-            placeholder={placeholder || '开始用 Markdown 书写…'}
+            placeholder={placeholder || '开始用 Markdown 书写…（可粘贴或拖入图片）'}
             spellCheck={false}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={onKeyDown}
+            onPaste={(e) => void onPaste(e)}
           />
         )}
         {showPreview && (
@@ -275,7 +422,6 @@ export function MarkdownEditor({ value, onChange, readOnly, placeholder }: Props
               'md-preview h-full min-h-0 overflow-y-auto overscroll-contain px-4 py-3',
               effectiveMode === 'preview' && 'flex-1'
             )}
-            // 内容来自本人笔记 + 基础消毒
             dangerouslySetInnerHTML={{ __html: html || '<p class="text-slate-400">暂无内容</p>' }}
           />
         )}

@@ -82,11 +82,6 @@ export function LoginPage() {
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {loading ? '登录中…' : '登录'}
           </button>
-
-          <p className="mt-4 text-center text-xs text-slate-500">
-            默认账号 <code className="text-slate-300">admin</code> /{' '}
-            <code className="text-slate-300">admin123</code>
-          </p>
         </form>
       </div>
     </div>
