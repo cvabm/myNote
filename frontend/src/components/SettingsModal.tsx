@@ -148,7 +148,7 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
               导入 Markdown
             </h3>
             <p className="mb-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-              从 Flatnotes 或其它应用导出的 .md 文件导入。选择文件夹时，子目录会建成笔记本；也可只选多个文件。
+              从 Flatnotes 或其它应用导出的 .md 导入。根目录文件进「默认笔记本」；子目录会建成笔记本。也可只选多个文件。
             </p>
 
             <div className="mb-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
@@ -160,7 +160,7 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
                   disabled={importing}
                   onChange={(e) => setFlat(e.target.checked)}
                 />
-                全部放进「未分类」（不按文件夹建笔记本）
+                全部放进「默认笔记本」（不按文件夹建笔记本）
               </label>
               <label className="flex cursor-pointer items-center gap-2">
                 <input

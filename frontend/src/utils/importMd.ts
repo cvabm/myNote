@@ -8,11 +8,16 @@ export type ImportFile = {
 };
 
 export type ImportOptions = {
-  /** true：不建笔记本，全部未分类 */
+  /** true：不按文件夹建笔记本，全部进默认笔记本 */
   flat: boolean;
   skipEmpty: boolean;
   onProgress?: (done: number, total: number, current: string) => void;
 };
+
+function resolveDefaultNotebookId(list: Notebook[]): string | null {
+  const def = list.find((n) => n.name === '默认笔记本');
+  return def?.id ?? list.find((n) => !n.parentId)?.id ?? list[0]?.id ?? null;
+}
 
 export type ImportResult = {
   ok: number;
@@ -72,11 +77,22 @@ export async function importMarkdownFiles(
   /** pathKey -> id，如 "工作/项目A" */
   const cache = new Map<string, string>();
 
-  // 预填：仅用「父级链 + 名称」在 ensure 时查 existing
   const list: Notebook[] = [...existing];
+  let defaultNotebookId = resolveDefaultNotebookId(list);
+
+  // 没有默认笔记本时自动创建一个
+  if (!defaultNotebookId) {
+    const created = await api.createNotebook({ name: '默认笔记本', parentId: null });
+    list.push(created);
+    defaultNotebookId = created.id;
+  }
 
   async function ensureNotebookPath(relDir: string): Promise<string | null> {
-    if (options.flat || !relDir || relDir === '.') return null;
+    // 扁平导入：全部进默认笔记本
+    if (options.flat) return defaultNotebookId;
+    // 根目录文件：进默认笔记本（与新建笔记一致）
+    if (!relDir || relDir === '.') return defaultNotebookId;
+
     const parts = relDir.split('/').filter(Boolean);
     let parentId: string | null = null;
     let pathKey = '';
@@ -114,7 +130,7 @@ export async function importMarkdownFiles(
       const dir = item.relativePath.includes('/')
         ? item.relativePath.slice(0, item.relativePath.lastIndexOf('/'))
         : '';
-      const notebookId = await ensureNotebookPath(dir);
+      const notebookId = (await ensureNotebookPath(dir)) ?? defaultNotebookId;
       const title = titleFromMarkdown(item.content, fileName);
       await api.createNote({
         title,
