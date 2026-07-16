@@ -43,8 +43,8 @@ export function NoteEditor({
   const readOnly = isTrash;
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col bg-white">
-      <div className="flex items-center gap-1 border-b border-slate-200 px-2 py-2 safe-pt sm:gap-2 sm:px-4">
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
+      <div className="flex items-center gap-1 border-b border-slate-200 px-2 py-2 safe-pt sm:gap-2 sm:px-4 dark:border-slate-800">
         <button
           type="button"
           className="btn-ghost shrink-0 !p-2 md:hidden"
@@ -55,7 +55,7 @@ export function NoteEditor({
           <ArrowLeft className="h-5 w-5" />
         </button>
         <input
-          className="min-w-0 flex-1 border-0 bg-transparent text-base font-semibold text-slate-800 outline-none placeholder:text-slate-300 sm:text-lg"
+          className="min-w-0 flex-1 border-0 bg-transparent text-base font-semibold text-slate-800 outline-none placeholder:text-slate-300 dark:text-slate-100 dark:placeholder:text-slate-600 sm:text-lg"
           value={note.title}
           disabled={readOnly}
           onChange={(e) => onChange({ title: e.target.value })}
@@ -111,8 +111,8 @@ export function NoteEditor({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm sm:gap-3 sm:px-4">
-        <label className="flex min-w-0 items-center gap-2 text-slate-500">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm dark:border-slate-800 sm:gap-3 sm:px-4">
+        <label className="flex min-w-0 items-center gap-2 text-slate-500 dark:text-slate-400">
           <span className="shrink-0 text-xs">笔记本</span>
           <select
             className="input w-auto max-w-[40vw] py-1.5 text-xs sm:max-w-none sm:py-1"

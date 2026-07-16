@@ -335,19 +335,22 @@ export function MarkdownEditor({
 
   return (
     <div
-      className={clsx('relative flex h-full min-h-0 flex-col', dragOver && 'ring-2 ring-inset ring-brand-400')}
+      className={clsx(
+        'relative flex h-full min-h-0 flex-col',
+        dragOver && 'ring-2 ring-inset ring-brand-400'
+      )}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={(e) => void onDrop(e)}
     >
       {dragOver && !readOnly && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-brand-50/80 text-sm font-medium text-brand-700">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-brand-50/80 text-sm font-medium text-brand-700 dark:bg-brand-950/80 dark:text-brand-200">
           松开以上传图片
         </div>
       )}
 
       {!readOnly && (
-        <div className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 bg-slate-50 px-1.5 py-1">
+        <div className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 bg-slate-50 px-1.5 py-1 dark:border-slate-800 dark:bg-slate-900">
           {tools.map((t) => (
             <button
               key={t.title}
@@ -388,7 +391,10 @@ export function MarkdownEditor({
           <button
             type="button"
             title="编辑"
-            className={clsx('btn-ghost !rounded-md !p-2', effectiveMode === 'edit' && 'bg-white shadow-sm')}
+            className={clsx(
+              'btn-ghost !rounded-md !p-2',
+              effectiveMode === 'edit' && 'bg-white shadow-sm dark:bg-slate-800'
+            )}
             onClick={() => setMode('edit')}
           >
             <PenLine className="h-4 w-4" />
@@ -398,7 +404,7 @@ export function MarkdownEditor({
             title="预览"
             className={clsx(
               'btn-ghost !rounded-md !p-2',
-              effectiveMode === 'preview' && 'bg-white shadow-sm'
+              effectiveMode === 'preview' && 'bg-white shadow-sm dark:bg-slate-800'
             )}
             onClick={() => setMode('preview')}
           >
@@ -410,7 +416,7 @@ export function MarkdownEditor({
               title="分栏"
               className={clsx(
                 'btn-ghost !rounded-md !p-2',
-                effectiveMode === 'split' && 'bg-white shadow-sm'
+                effectiveMode === 'split' && 'bg-white shadow-sm dark:bg-slate-800'
               )}
               onClick={() => setMode('split')}
             >
@@ -423,14 +429,16 @@ export function MarkdownEditor({
       <div
         className={clsx(
           'min-h-0 flex-1',
-          effectiveMode === 'split' ? 'grid grid-cols-2 divide-x divide-slate-200' : 'flex'
+          effectiveMode === 'split'
+            ? 'grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-800'
+            : 'flex'
         )}
       >
         {showEdit && (
           <textarea
             ref={taRef}
             className={clsx(
-              'h-full min-h-0 w-full resize-none border-0 bg-white px-4 py-3 font-mono text-base leading-relaxed text-slate-800 outline-none placeholder:text-slate-300 sm:text-[15px]',
+              'h-full min-h-0 w-full resize-none border-0 bg-white px-4 py-3 font-mono text-base leading-relaxed text-slate-800 outline-none placeholder:text-slate-300 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-600 sm:text-[15px]',
               effectiveMode === 'edit' && 'flex-1'
             )}
             value={value}

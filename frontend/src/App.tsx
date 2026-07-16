@@ -238,7 +238,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-slate-400">
+      <div className="flex h-full items-center justify-center bg-surface-50 text-sm text-slate-400 dark:bg-surface-950">
         加载中…
       </div>
     );
@@ -249,11 +249,11 @@ export default function App() {
   const mobileShowEditor = !!selectedId;
 
   return (
-    <div className="relative flex h-full overflow-hidden">
+    <div className="relative flex h-full overflow-hidden bg-surface-50 dark:bg-surface-950">
       {sidebarOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[1px] md:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-[1px] md:hidden"
           aria-label="关闭菜单"
           onClick={() => setSidebarOpen(false)}
         />
@@ -322,11 +322,11 @@ export default function App() {
             initialEditorMode={openInEditMode ? 'split' : 'preview'}
           />
         ) : selectedId ? (
-          <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400">
+          <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400 dark:bg-slate-950">
             加载笔记…
           </div>
         ) : (
-          <div className="hidden h-full min-w-0 flex-1 flex-col items-center justify-center bg-white text-slate-400 md:flex">
+          <div className="hidden h-full min-w-0 flex-1 flex-col items-center justify-center bg-white text-slate-400 dark:bg-slate-950 md:flex">
             <div className="mb-2 text-5xl opacity-20">✎</div>
             <p className="px-6 text-center text-sm">选择或新建一篇笔记开始书写</p>
           </div>
