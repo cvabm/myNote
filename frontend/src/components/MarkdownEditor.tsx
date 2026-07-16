@@ -35,6 +35,8 @@ type Props = {
   onChange: (value: string) => void;
   readOnly?: boolean;
   placeholder?: string;
+  /** 打开时的默认模式；新建笔记可传 split，点开已有笔记用 preview */
+  initialMode?: EditorMode;
 };
 
 marked.setOptions({
@@ -140,11 +142,20 @@ function isImageFile(file: File) {
   return /^image\/(jpeg|png|gif|webp)$/i.test(file.type);
 }
 
-export function MarkdownEditor({ value, onChange, readOnly, placeholder }: Props) {
+export function MarkdownEditor({
+  value,
+  onChange,
+  readOnly,
+  placeholder,
+  initialMode = 'preview',
+}: Props) {
   const isMobile = useIsMobile();
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [mode, setMode] = useState<EditorMode>('preview');
+  // 手机无分栏时，split 降级为 edit
+  const [mode, setMode] = useState<EditorMode>(() =>
+    initialMode === 'split' && isMobile ? 'edit' : initialMode
+  );
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 

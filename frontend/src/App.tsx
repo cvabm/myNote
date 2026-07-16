@@ -14,6 +14,8 @@ export default function App() {
   const [notes, setNotes] = useState<NoteListItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [current, setCurrent] = useState<Note | null>(null);
+  /** 新建后打开为分栏编辑；从列表点开为预览 */
+  const [openInEditMode, setOpenInEditMode] = useState(false);
   const [filter, setFilter] = useState<ViewFilter>({ type: 'all' });
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -138,6 +140,7 @@ export default function App() {
       });
       await loadNotes();
       await loadMeta();
+      setOpenInEditMode(true);
       setSelectedId(note.id);
     } catch (e) {
       alert(e instanceof Error ? e.message : '创建失败');
@@ -294,6 +297,7 @@ export default function App() {
           notes={notes}
           selectedId={selectedId}
           onSelect={(id) => {
+            setOpenInEditMode(false);
             setSelectedId(id);
             setSidebarOpen(false);
           }}
@@ -314,7 +318,11 @@ export default function App() {
             onTrash={handleTrash}
             onRestore={handleRestore}
             onDeleteForever={handleDeleteForever}
-            onClose={() => setSelectedId(null)}
+            onClose={() => {
+              setOpenInEditMode(false);
+              setSelectedId(null);
+            }}
+            initialEditorMode={openInEditMode ? 'split' : 'preview'}
           />
         ) : selectedId ? (
           <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400">

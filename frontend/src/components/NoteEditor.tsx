@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import type { Note, Notebook } from '../types';
 import { formatRelativeTime } from '../utils';
-import { MarkdownEditor } from './MarkdownEditor';
+import { MarkdownEditor, type EditorMode } from './MarkdownEditor';
 
 type NotePatch = {
   title?: string;
@@ -27,6 +27,8 @@ type Props = {
   onRestore: () => void;
   onDeleteForever: () => void;
   onClose: () => void;
+  /** 新建后打开用分栏；点列表打开用预览 */
+  initialEditorMode?: EditorMode;
 };
 
 export function NoteEditor({
@@ -38,6 +40,7 @@ export function NoteEditor({
   onRestore,
   onDeleteForever,
   onClose,
+  initialEditorMode = 'preview',
 }: Props) {
   const isTrash = !!note.deletedAt;
   const readOnly = isTrash || !!note.isLocked;
@@ -152,8 +155,10 @@ export function NoteEditor({
 
       <div className="min-h-0 flex-1 overflow-hidden safe-pb">
         <MarkdownEditor
+          key={`${note.id}-${initialEditorMode}`}
           value={note.content}
           readOnly={readOnly}
+          initialMode={initialEditorMode}
           placeholder="开始用 Markdown 书写…"
           onChange={(content) => {
             if (!readOnly) onChange({ content });
