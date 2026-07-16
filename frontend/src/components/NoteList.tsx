@@ -12,9 +12,7 @@ type Props = {
   onOpenSidebar?: () => void;
   onCreateNote?: () => void;
   mobileHidden?: boolean;
-  /** 搜索关键字：用于标题/摘要高亮 */
   highlightQuery?: string;
-  /** 是否正在搜索请求中 */
   searching?: boolean;
 };
 
@@ -36,11 +34,11 @@ export function NoteList({
   return (
     <div
       className={clsx(
-        'h-full w-full shrink-0 flex-col border-r border-slate-200 bg-surface-50 md:w-72',
+        'h-full w-full shrink-0 flex-col border-r border-slate-200 bg-surface-50 md:w-72 dark:border-slate-800 dark:bg-slate-900/50',
         mobileHidden ? 'hidden md:flex' : 'flex'
       )}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-3 safe-pt md:px-4">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-3 safe-pt md:px-4 dark:border-slate-800">
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
@@ -52,7 +50,7 @@ export function NoteList({
             <Menu className="h-5 w-5" />
           </button>
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-slate-800">
+            <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
               {isTrash ? '回收站' : isSearch ? '搜索结果' : '笔记'}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -100,14 +98,14 @@ export function NoteList({
             type="button"
             onClick={() => onSelect(note.id)}
             className={clsx(
-              'w-full border-b border-slate-100 px-4 py-3.5 text-left transition active:bg-white md:py-3',
+              'w-full border-b border-slate-100 px-4 py-3.5 text-left transition md:py-3 dark:border-slate-800',
               selectedId === note.id
-                ? 'bg-white shadow-soft ring-1 ring-inset ring-brand-100'
-                : 'hover:bg-white/80'
+                ? 'bg-white shadow-soft ring-1 ring-inset ring-brand-100 dark:bg-slate-900 dark:ring-brand-500/30'
+                : 'hover:bg-white/80 active:bg-white dark:hover:bg-slate-800/80 dark:active:bg-slate-800'
             )}
           >
             <div className="mb-1 flex items-start gap-2">
-              <span className="line-clamp-1 flex-1 text-sm font-medium text-slate-800">
+              <span className="line-clamp-1 flex-1 text-sm font-medium text-slate-800 dark:text-slate-100">
                 {isSearch
                   ? highlightText(note.title || '未命名笔记', q)
                   : note.title || '未命名笔记'}
@@ -117,7 +115,7 @@ export function NoteList({
               )}
             </div>
             {note.preview && (
-              <p className="mb-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500">
+              <p className="mb-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                 {isSearch ? highlightText(note.preview, q) : note.preview}
               </p>
             )}

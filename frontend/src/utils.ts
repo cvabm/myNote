@@ -77,7 +77,7 @@ export function highlightText(text: string, query: string): ReactNode {
           {
             key: i,
             className:
-              'rounded-sm bg-amber-200/90 px-0.5 font-medium text-amber-950 not-italic',
+              'rounded-sm bg-amber-200/90 px-0.5 font-medium text-amber-950 not-italic dark:bg-amber-500/30 dark:text-amber-100',
           },
           part
         );

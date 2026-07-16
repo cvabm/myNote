@@ -13,8 +13,21 @@
     <meta name="format-detection" content="telephone=no" />
     <title>MyNote · 私有知识库</title>
     <!-- 使用系统字体，避免 Google Fonts 在国内极慢/不可达 -->
+    <script>
+      // 尽早应用主题，避免闪白
+      (function () {
+        try {
+          var p = localStorage.getItem('mynote_theme') || 'system';
+          var dark =
+            p === 'dark' ||
+            (p === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-surface-50 text-slate-800 antialiased">
+  <body class="bg-surface-50 text-slate-800 antialiased dark:bg-surface-950 dark:text-slate-100">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

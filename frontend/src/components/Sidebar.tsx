@@ -60,7 +60,7 @@ function NotebookNode({
       >
         <button
           type="button"
-          className="shrink-0 rounded p-1 hover:bg-slate-200/70"
+          className="shrink-0 rounded p-1 hover:bg-slate-200/70 dark:hover:bg-slate-700"
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? '折叠' : '展开'}
         >
@@ -90,7 +90,7 @@ function NotebookNode({
         <button
           type="button"
           title="新建子笔记本"
-          className="inline-flex rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 md:hidden md:group-hover:inline-flex"
+          className="inline-flex rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200 md:hidden md:group-hover:inline-flex"
           onClick={() => onCreateChild(node.id)}
         >
           <FolderPlus className="h-3.5 w-3.5" />
@@ -98,7 +98,7 @@ function NotebookNode({
         <button
           type="button"
           title="删除笔记本"
-          className="inline-flex rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 md:hidden md:group-hover:inline-flex"
+          className="inline-flex rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 md:hidden md:group-hover:inline-flex"
           onClick={() => onDelete(node.id)}
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -177,19 +177,21 @@ export function Sidebar({
   return (
     <aside
       className={clsx(
-        'flex h-full w-[min(18rem,85vw)] shrink-0 flex-col border-r border-slate-200 bg-white',
+        'flex h-full w-[min(18rem,85vw)] shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
         // 手机：左侧抽屉；桌面：静态侧栏
         'fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out',
         'md:static md:z-auto md:w-64 md:max-w-none md:translate-x-0',
         mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0 md:shadow-none'
       )}
     >
-      <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 safe-pt">
+      <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 safe-pt dark:border-slate-800">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
           <BookMarked className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-slate-800">MyNote</div>
+          <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+            MyNote
+          </div>
           <div className="truncate text-xs text-slate-400">{username}</div>
         </div>
         <button
@@ -214,7 +216,7 @@ export function Sidebar({
         </button>
       </div>
 
-      <div className="border-b border-slate-100 p-3" data-search-box>
+      <div className="border-b border-slate-100 p-3 dark:border-slate-800" data-search-box>
         <div className="relative">
           <Search
             className={clsx(
@@ -240,7 +242,7 @@ export function Sidebar({
           {q && (
             <button
               type="button"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               onClick={clearSearch}
               title="清除搜索"
               aria-label="清除搜索"
@@ -291,7 +293,7 @@ export function Sidebar({
           </span>
           <button
             type="button"
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             title="新建笔记本"
             onClick={() => onCreateNotebook(null)}
           >
@@ -314,7 +316,7 @@ export function Sidebar({
         ))}
       </div>
 
-      <div className="flex items-center gap-1 border-t border-slate-100 p-2 safe-pb">
+      <div className="flex items-center gap-1 border-t border-slate-100 p-2 safe-pb dark:border-slate-800">
         <button type="button" className="btn-ghost flex-1 justify-start" onClick={onOpenSettings}>
           <Settings className="h-4 w-4" />
           设置
