@@ -49,3 +49,27 @@ uploadRoutes.post('/', async (c) => {
   const url = `/uploads/${name}`;
   return c.json({ url, name, size: buf.byteLength }, 201);
 });
+
+/** 删除已上传图片文件（仅允许 uploads 目录下安全文件名） */
+uploadRoutes.delete('/:name', (c) => {
+  const name = path.basename(c.req.param('name') || '');
+  if (!name || name === '.' || name === '..') {
+    return c.json({ error: '无效文件名' }, 400);
+  }
+  // 仅允许我们上传时生成的 nanoid + 扩展名
+  if (!/^[A-Za-z0-9_-]{8,}\.(jpg|jpeg|png|gif|webp)$/i.test(name)) {
+    return c.json({ error: '无效文件名' }, 400);
+  }
+
+  const dest = path.join(path.resolve(UPLOAD_DIR), name);
+  const root = path.resolve(UPLOAD_DIR);
+  if (!dest.startsWith(root + path.sep) && dest !== root) {
+    return c.json({ error: '禁止访问' }, 403);
+  }
+
+  if (fs.existsSync(dest) && fs.statSync(dest).isFile()) {
+    fs.unlinkSync(dest);
+  }
+  // 文件不存在也视为成功（幂等）
+  return c.json({ ok: true });
+});

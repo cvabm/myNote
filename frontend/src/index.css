@@ -259,6 +259,48 @@ html.dark .md-preview hr {
   border-radius: 0.5em;
   margin: 0.75em 0;
   box-shadow: 0 1px 3px rgb(15 23 42 / 8%);
+  display: block;
+}
+
+/* 预览区图片删除 */
+.md-preview .md-img-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 0.75em 0;
+  vertical-align: top;
+}
+.md-preview .md-img-wrap img {
+  margin: 0;
+}
+.md-preview .md-img-delete {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  appearance: none;
+  border: none;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #fff;
+  background: rgb(15 23 42 / 72%);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+.md-preview .md-img-wrap:hover .md-img-delete,
+.md-preview .md-img-wrap:focus-within .md-img-delete {
+  opacity: 1;
+}
+.md-preview .md-img-delete:hover {
+  background: rgb(220 38 38 / 90%);
+}
+@media (hover: none) {
+  .md-preview .md-img-delete {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 767px) {

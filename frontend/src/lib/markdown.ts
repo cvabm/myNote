@@ -85,6 +85,9 @@ marked.setOptions({
   breaks: true,
 });
 
+/** 渲染时是否显示图片删除按钮（可编辑预览） */
+let imageDeleteEnabled = false;
+
 marked.use({
   renderer: {
     code({ text, lang }: Tokens.Code) {
@@ -102,6 +105,19 @@ marked.use({
   <textarea class="code-raw" readonly hidden>${escapeHtml(text)}</textarea>
 </div>\n`;
     },
+    image({ href, title, text }: Tokens.Image) {
+      const src = href || '';
+      const alt = text || '';
+      const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+      const img = `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${titleAttr} loading="lazy" />`;
+      if (!imageDeleteEnabled) {
+        return img;
+      }
+      return `<span class="md-img-wrap">
+  ${img}
+  <button type="button" class="md-img-delete" data-src="${escapeHtml(src)}" title="删除图片">删除</button>
+</span>`;
+    },
   },
 });
 
@@ -113,11 +129,41 @@ function sanitizeHtml(html: string) {
     .replace(/javascript:/gi, '');
 }
 
-export function renderMarkdown(md: string): string {
+export function renderMarkdown(
+  md: string,
+  opts?: { showImageDelete?: boolean }
+): string {
+  imageDeleteEnabled = !!opts?.showImageDelete;
   try {
     const raw = marked.parse(md || '', { async: false }) as string;
     return sanitizeHtml(raw);
   } catch {
     return `<pre>${escapeHtml(md || '')}</pre>`;
+  } finally {
+    imageDeleteEnabled = false;
+  }
+}
+
+/** 从 Markdown 正文中移除指定 src 的图片语法 */
+export function removeImageFromMarkdown(content: string, src: string): string {
+  if (!src) return content;
+  const escaped = src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // ![alt](src) 或 ![alt](src "title")
+  const re = new RegExp(`!\\[[^\\]]*\\]\\(${escaped}(?:\\s+"[^"]*")?\\)`, 'g');
+  return content
+    .replace(re, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimEnd();
+}
+
+/** 从 /uploads/xxx.jpg 提取文件名 */
+export function uploadNameFromSrc(src: string): string | null {
+  try {
+    const pathOnly = src.split('?')[0].split('#')[0];
+    const m = pathOnly.match(/\/uploads\/([^/]+)$/i);
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch {
+    return null;
   }
 }
