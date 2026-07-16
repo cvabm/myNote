@@ -177,7 +177,6 @@ export default function App() {
     content?: string;
     notebookId?: string | null;
     isFavorite?: boolean;
-    isLocked?: boolean;
   }) {
     if (!current) return;
 
@@ -187,7 +186,6 @@ export default function App() {
       content: patch.content ?? current.content,
       notebookId: patch.notebookId !== undefined ? patch.notebookId : current.notebookId,
       isFavorite: patch.isFavorite ?? current.isFavorite,
-      isLocked: patch.isLocked ?? current.isLocked,
     });
 
     const apiPatch: Record<string, unknown> = {};
@@ -195,7 +193,6 @@ export default function App() {
     if (patch.content !== undefined) apiPatch.content = patch.content;
     if (patch.notebookId !== undefined) apiPatch.notebookId = patch.notebookId;
     if (patch.isFavorite !== undefined) apiPatch.isFavorite = patch.isFavorite;
-    if (patch.isLocked !== undefined) apiPatch.isLocked = patch.isLocked;
     scheduleSave(apiPatch);
   }
 

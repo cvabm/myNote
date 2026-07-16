@@ -87,7 +87,6 @@ export const api = {
       content: string;
       notebookId: string | null;
       isFavorite: boolean;
-      isLocked: boolean;
     }>
   ) {
     return request<Note>(`/api/notes/${id}`, {
