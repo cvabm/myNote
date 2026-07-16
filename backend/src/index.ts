@@ -10,7 +10,6 @@ import { initDb } from './db.js';
 import { authRoutes } from './routes/auth.js';
 import { notebookRoutes } from './routes/notebooks.js';
 import { noteRoutes } from './routes/notes.js';
-import { tagRoutes } from './routes/tags.js';
 
 const PORT = Number(process.env.PORT || 3001);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,7 +33,6 @@ app.get('/api/health', (c) => c.json({ ok: true, name: 'MyNote', version: '1.0.0
 app.route('/api/auth', authRoutes);
 app.route('/api/notebooks', notebookRoutes);
 app.route('/api/notes', noteRoutes);
-app.route('/api/tags', tagRoutes);
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

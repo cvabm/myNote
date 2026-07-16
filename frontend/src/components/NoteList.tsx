@@ -125,14 +125,6 @@ export function NoteList({
               <span className="text-[11px] text-slate-400">
                 {formatRelativeTime(note.updatedAt)}
               </span>
-              {note.tags.slice(0, 2).map((t) => (
-                <span
-                  key={t.id}
-                  className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500"
-                >
-                  {t.name}
-                </span>
-              ))}
             </div>
           </button>
         ))}

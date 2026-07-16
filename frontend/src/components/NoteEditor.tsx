@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Lock,
@@ -17,7 +16,6 @@ type NotePatch = {
   notebookId?: string | null;
   isFavorite?: boolean;
   isLocked?: boolean;
-  tags?: string[];
 };
 
 type Props = {
@@ -41,23 +39,8 @@ export function NoteEditor({
   onDeleteForever,
   onClose,
 }: Props) {
-  const [tagInput, setTagInput] = useState('');
   const isTrash = !!note.deletedAt;
   const readOnly = isTrash || !!note.isLocked;
-
-  const tagNames = useMemo(() => note.tags.map((t) => t.name) || [], [note.tags]);
-
-  useEffect(() => {
-    setTagInput(tagNames.join(', '));
-  }, [note.id, tagNames.join(',')]);
-
-  function commitTags() {
-    const tags = tagInput
-      .split(/[,，]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    onChange({ tags });
-  }
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col bg-white">
@@ -154,23 +137,6 @@ export function NoteEditor({
               </option>
             ))}
           </select>
-        </label>
-        <label className="flex min-w-0 flex-1 basis-full items-center gap-2 text-slate-500 sm:basis-auto sm:min-w-[200px]">
-          <span className="shrink-0 text-xs">标签</span>
-          <input
-            className="input py-1.5 text-xs sm:py-1"
-            disabled={readOnly}
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onBlur={commitTags}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commitTags();
-              }
-            }}
-            placeholder="用逗号分隔，如：工作, 灵感"
-          />
         </label>
         {isTrash && (
           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">

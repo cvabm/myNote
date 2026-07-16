@@ -2,7 +2,7 @@
 
 自托管私有笔记 / 知识库，可部署在你自己的服务器上。
 
-设计思路参考 [nowen-note](https://github.com/cropflre/nowen-note)：三栏布局、多级笔记本、Markdown、标签、收藏、回收站、全文搜索、Docker 一键部署。
+设计思路参考 [nowen-note](https://github.com/cropflre/nowen-note)：三栏布局、多级笔记本、Markdown、收藏、回收站、全文搜索、Docker 一键部署。
 
 ## 功能
 
@@ -10,11 +10,10 @@
 | --- | --- |
 | 用户登录 | JWT 鉴权，可修改密码 |
 | 多级笔记本 | 无限层级树形组织 |
-| Markdown 编辑 | 分屏预览，自动保存 |
-| 标签 | 逗号分隔，侧边栏筛选 |
+| Markdown 编辑 | 预览 / 编辑 / 分栏，自动保存 |
 | 收藏 / 锁定 | 快速收藏，锁定后只读 |
 | 回收站 | 软删除、恢复、永久删除、清空 |
-| 全文搜索 | SQLite FTS5 |
+| 全文搜索 | 即时搜索、关键字高亮（SQLite FTS5） |
 | Docker 部署 | 数据卷持久化 |
 
 ## 快速开始（Docker，推荐）
@@ -95,8 +94,14 @@ myNote/
 | POST | `/api/auth/change-password` | 改密 |
 | CRUD | `/api/notebooks` | 笔记本 |
 | CRUD | `/api/notes` | 笔记（含 trash/restore） |
-| CRUD | `/api/tags` | 标签 |
 | GET | `/api/health` | 健康检查 |
+
+## 从 Flatnotes / Markdown 导入
+
+1. 备份原 Markdown 数据目录。  
+2. 登录 MyNote → **设置** → **导入 Markdown**。  
+3. **选择文件夹**（保留目录结构为笔记本）或 **选择 .md 文件**。  
+4. 等待进度完成，侧边栏会自动刷新。
 
 ## 与 nowen-note 的差异
 

@@ -21,18 +21,6 @@ type NoteRow = {
 export const noteRoutes = new Hono<{ Variables: AppVariables }>();
 noteRoutes.use('*', requireAuth);
 
-function getTagsForNote(noteId: string) {
-  return db
-    .prepare(
-      `SELECT t.id, t.name, t.color
-       FROM tags t
-       INNER JOIN note_tags nt ON nt.tag_id = t.id
-       WHERE nt.note_id = ?
-       ORDER BY t.name`
-    )
-    .all(noteId) as { id: string; name: string; color: string }[];
-}
-
 /** 在正文中截取关键字附近片段，便于列表即时预览 */
 function snippetAround(text: string, query: string, radius = 55): string {
   const flat = text.replace(/\s+/g, ' ').trim();
@@ -63,7 +51,6 @@ function snippetAround(text: string, query: string, radius = 55): string {
 }
 
 function mapNote(row: NoteRow, withContent = true, searchQuery = '') {
-  const tags = getTagsForNote(row.id);
   const base = {
     id: row.id,
     notebookId: row.notebook_id,
@@ -72,7 +59,6 @@ function mapNote(row: NoteRow, withContent = true, searchQuery = '') {
     isLocked: !!row.is_locked,
     deletedAt: row.deleted_at,
     sortOrder: row.sort_order,
-    tags,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -101,47 +87,19 @@ function mapNote(row: NoteRow, withContent = true, searchQuery = '') {
   };
 }
 
-function setNoteTags(noteId: string, userId: string, tagNames: string[]) {
-  db.prepare('DELETE FROM note_tags WHERE note_id = ?').run(noteId);
-  for (const raw of tagNames) {
-    const name = raw.trim();
-    if (!name) continue;
-    let tag = db
-      .prepare('SELECT id FROM tags WHERE user_id = ? AND name = ?')
-      .get(userId, name) as { id: string } | undefined;
-    if (!tag) {
-      const id = nanoid();
-      db.prepare('INSERT INTO tags (id, user_id, name) VALUES (?, ?, ?)').run(id, userId, name);
-      tag = { id };
-    }
-    db.prepare('INSERT OR IGNORE INTO note_tags (note_id, tag_id) VALUES (?, ?)').run(
-      noteId,
-      tag.id
-    );
-  }
-}
-
 noteRoutes.get('/', (c) => {
   const user = getUser(c);
   const notebookId = c.req.query('notebookId');
   const favorite = c.req.query('favorite');
   const trash = c.req.query('trash');
-  const tagId = c.req.query('tagId');
   const q = (c.req.query('q') || '').trim();
 
   let sql = `
-    SELECT DISTINCT n.*
+    SELECT n.*
     FROM notes n
+    WHERE n.user_id = ?
   `;
-  const params: unknown[] = [];
-
-  if (tagId) {
-    sql += ` INNER JOIN note_tags nt ON nt.note_id = n.id AND nt.tag_id = ? `;
-    params.push(tagId);
-  }
-
-  sql += ` WHERE n.user_id = ? `;
-  params.push(user.id);
+  const params: unknown[] = [user.id];
 
   if (trash === '1') {
     sql += ` AND n.deleted_at IS NOT NULL `;
@@ -163,7 +121,6 @@ noteRoutes.get('/', (c) => {
   let searchIds: string[] = [];
   if (q) {
     try {
-      // 将查询拆成词，并加 * 前缀匹配；特殊字符转义
       const terms = q
         .split(/\s+/)
         .map((t) => t.replace(/["'*:^(){}[\]~-]/g, ' ').trim())
@@ -206,7 +163,6 @@ noteRoutes.get('/', (c) => {
 
   let rows = db.prepare(sql).all(...params) as NoteRow[];
 
-  // 还原 FTS 相关度顺序
   if (q && searchIds.length > 0) {
     const order = new Map(searchIds.map((id, i) => [id, i]));
     rows = rows.slice().sort((a, b) => (order.get(a.id) ?? 9999) - (order.get(b.id) ?? 9999));
@@ -230,7 +186,6 @@ noteRoutes.post('/', async (c) => {
   const title = String(body.title ?? '未命名笔记').trim() || '未命名笔记';
   const content = String(body.content ?? '');
   const notebookId = body.notebookId ? String(body.notebookId) : null;
-  const tags: string[] = Array.isArray(body.tags) ? body.tags.map(String) : [];
 
   if (notebookId) {
     const nb = db
@@ -246,7 +201,6 @@ noteRoutes.post('/', async (c) => {
        VALUES (?, ?, ?, ?, ?)`
     ).run(id, user.id, notebookId, title, content);
     syncNoteFts(id, title, content);
-    setNoteTags(id, user.id, tags);
   });
   tx();
 
@@ -265,15 +219,13 @@ noteRoutes.patch('/:id', async (c) => {
 
   const body = await c.req.json().catch(() => ({}));
 
-  // 已锁定时仅允许解锁 / 收藏，禁止改内容
   const unlockOnly =
     existing.is_locked &&
     body.isLocked === false &&
     body.title === undefined &&
     body.content === undefined &&
     body.contentHtml === undefined &&
-    body.notebookId === undefined &&
-    body.tags === undefined;
+    body.notebookId === undefined;
 
   const favoriteOnly =
     existing.is_locked &&
@@ -282,7 +234,6 @@ noteRoutes.patch('/:id', async (c) => {
     body.content === undefined &&
     body.contentHtml === undefined &&
     body.notebookId === undefined &&
-    body.tags === undefined &&
     body.isLocked === undefined;
 
   if (existing.is_locked && !unlockOnly && !favoriteOnly) {
@@ -319,9 +270,6 @@ noteRoutes.patch('/:id', async (c) => {
        WHERE id = ? AND user_id = ?`
     ).run(title, content, contentHtml, notebookId, isFavorite, isLocked, id, user.id);
     syncNoteFts(id, title, content);
-    if (Array.isArray(body.tags)) {
-      setNoteTags(id, user.id, body.tags.map(String));
-    }
   });
   tx();
 
@@ -329,7 +277,6 @@ noteRoutes.patch('/:id', async (c) => {
   return c.json(mapNote(row, true));
 });
 
-// 移入回收站
 noteRoutes.post('/:id/trash', (c) => {
   const user = getUser(c);
   const id = c.req.param('id');
@@ -346,7 +293,6 @@ noteRoutes.post('/:id/trash', (c) => {
   return c.json({ ok: true });
 });
 
-// 从回收站恢复
 noteRoutes.post('/:id/restore', (c) => {
   const user = getUser(c);
   const id = c.req.param('id');
@@ -363,7 +309,6 @@ noteRoutes.post('/:id/restore', (c) => {
   return c.json({ ok: true });
 });
 
-// 永久删除
 noteRoutes.delete('/:id', (c) => {
   const user = getUser(c);
   const id = c.req.param('id');
@@ -380,7 +325,6 @@ noteRoutes.delete('/:id', (c) => {
   return c.json({ ok: true });
 });
 
-// 清空回收站
 noteRoutes.delete('/', (c) => {
   const user = getUser(c);
   const trashOnly = c.req.query('trash') === '1';

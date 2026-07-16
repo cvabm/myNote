@@ -101,7 +101,8 @@ function applyLinePrefix(
 export function MarkdownEditor({ value, onChange, readOnly, placeholder }: Props) {
   const isMobile = useIsMobile();
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const [mode, setMode] = useState<EditorMode>(readOnly ? 'preview' : isMobile ? 'edit' : 'split');
+  // 默认预览；需要改内容时再切「编辑 / 分栏」
+  const [mode, setMode] = useState<EditorMode>('preview');
 
   // 只读时强制预览
   const effectiveMode: EditorMode = readOnly ? 'preview' : mode;

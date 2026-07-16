@@ -55,24 +55,6 @@ export function initDb() {
       FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE SET NULL
     );
 
-    CREATE TABLE IF NOT EXISTS tags (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      color TEXT NOT NULL DEFAULT '#64748b',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(user_id, name),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS note_tags (
-      note_id TEXT NOT NULL,
-      tag_id TEXT NOT NULL,
-      PRIMARY KEY (note_id, tag_id),
-      FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
-      FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-    );
-
     CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
       note_id UNINDEXED,
       title,
@@ -86,6 +68,12 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_notes_favorite ON notes(is_favorite);
     CREATE INDEX IF NOT EXISTS idx_notebooks_user ON notebooks(user_id);
     CREATE INDEX IF NOT EXISTS idx_notebooks_parent ON notebooks(parent_id);
+  `);
+
+  // 历史版本曾有标签表，启动时清理
+  db.exec(`
+    DROP TABLE IF EXISTS note_tags;
+    DROP TABLE IF EXISTS tags;
   `);
 
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(ADMIN_USER) as
@@ -115,7 +103,7 @@ export function initDb() {
 
 - **多级笔记本**：无限层级组织你的知识
 - **Markdown 编辑**：所见即所得式预览
-- **标签 / 收藏 / 回收站**
+- **收藏 / 回收站**
 - **全文搜索**：快速找到任意笔记
 - **Docker 一键部署**
 
