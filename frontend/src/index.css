@@ -154,7 +154,10 @@ body {
 }
 .md-preview img {
   max-width: 100%;
+  height: auto;
   border-radius: 0.5em;
+  margin: 0.75em 0;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 8%);
 }
 
 @media (max-width: 767px) {
