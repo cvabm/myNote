@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "highlight.js": "^11.11.1",
     "lucide-react": "^0.488.0",
     "marked": "^15.0.7",
     "mynote": "file:..",
