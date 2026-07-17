@@ -377,7 +377,7 @@ export default function App() {
   const mobileShowEditor = !!selectedId;
 
   return (
-    <div className="relative flex h-full overflow-hidden bg-surface-50 dark:bg-surface-950">
+    <div className="relative flex h-full min-h-0 overflow-hidden bg-surface-50 dark:bg-surface-950">
       {sidebarOpen && (
         <button
           type="button"
@@ -424,7 +424,7 @@ export default function App() {
         searching={searching}
       />
 
-      <div className="flex min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {isMoments ? (
           <MomentsFeed
             username={user.displayName || user.username}

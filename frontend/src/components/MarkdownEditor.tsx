@@ -464,6 +464,8 @@ export function MarkdownEditor({
             ref={taRef}
             className={clsx(
               'h-full min-h-0 w-full resize-none border-0 bg-white px-4 py-3 font-mono text-base leading-relaxed text-slate-800 outline-none placeholder:text-slate-300 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-600 sm:text-[15px]',
+              // iOS：在输入框内允许纵向滑动
+              '[touch-action:pan-y] [-webkit-overflow-scrolling:touch]',
               effectiveMode === 'edit' && 'flex-1'
             )}
             value={value}
@@ -478,7 +480,7 @@ export function MarkdownEditor({
         {showPreview && (
           <div
             className={clsx(
-              'md-preview h-full min-h-0 overflow-y-auto overscroll-contain px-4 py-3',
+              'md-preview scroll-y h-full min-h-0 px-4 py-3',
               effectiveMode === 'preview' && 'flex-1'
             )}
             dangerouslySetInnerHTML={{ __html: html || '<p class="text-slate-400">暂无内容</p>' }}

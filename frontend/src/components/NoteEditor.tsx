@@ -43,7 +43,7 @@ export function NoteEditor({
   const readOnly = isTrash;
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
       <div className="flex items-center gap-1 border-b border-slate-200 px-2 py-2 safe-pt sm:gap-2 sm:px-4 dark:border-slate-800">
         <button
           type="button"

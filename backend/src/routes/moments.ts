@@ -1,10 +1,13 @@
 import { Hono } from 'hono';
+import fs from 'node:fs';
+import path from 'node:path';
 import { nanoid } from 'nanoid';
 import { db } from '../db.js';
 import { requireAuth, getUser, type AppVariables } from '../auth.js';
 
 const MAX_CONTENT = 2000;
 const MAX_IMAGES = 9;
+const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || './data/uploads');
 
 type MomentRow = {
   id: string;
@@ -35,13 +38,41 @@ function parseImages(raw: unknown): string[] {
   return [];
 }
 
-function mapMoment(row: MomentRow) {
-  let images: string[] = [];
+function imagesFromRow(row: MomentRow): string[] {
   try {
-    images = parseImages(JSON.parse(row.images || '[]'));
+    return parseImages(JSON.parse(row.images || '[]'));
   } catch {
-    images = [];
+    return [];
   }
+}
+
+/** 删除本地说说图片（仅 /uploads/ 下安全文件名） */
+function deleteLocalUpload(url: string) {
+  if (!url.startsWith('/uploads/')) return;
+  const name = path.basename(url.split('?')[0] || '');
+  if (!name || name === '.' || name === '..') return;
+  if (!/^[A-Za-z0-9_-]{8,}\.(jpg|jpeg|png|gif|webp)$/i.test(name)) return;
+
+  const dest = path.join(UPLOAD_DIR, name);
+  if (!dest.startsWith(UPLOAD_DIR + path.sep)) return;
+
+  try {
+    if (fs.existsSync(dest) && fs.statSync(dest).isFile()) {
+      fs.unlinkSync(dest);
+    }
+  } catch (e) {
+    console.warn(`[moments] 删除图片失败: ${name}`, e);
+  }
+}
+
+function deleteMomentImages(urls: string[]) {
+  for (const url of urls) {
+    deleteLocalUpload(url);
+  }
+}
+
+function mapMoment(row: MomentRow) {
+  const images = imagesFromRow(row);
   return {
     id: row.id,
     content: row.content,
@@ -143,7 +174,8 @@ momentRoutes.patch('/:id', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const content =
     body.content !== undefined ? String(body.content).trim() : existing.content;
-  const images = body.images !== undefined ? parseImages(body.images) : parseImages(existing.images);
+  const oldImages = imagesFromRow(existing);
+  const images = body.images !== undefined ? parseImages(body.images) : oldImages;
 
   if (!content && images.length === 0) {
     return c.json({ error: '请输入内容或添加图片' }, 400);
@@ -158,6 +190,12 @@ momentRoutes.patch('/:id', async (c) => {
      WHERE id = ? AND user_id = ?`
   ).run(content, JSON.stringify(images), id, user.id);
 
+  // 编辑时被移除的图片一并删掉物理文件
+  if (body.images !== undefined) {
+    const kept = new Set(images);
+    deleteMomentImages(oldImages.filter((u) => !kept.has(u)));
+  }
+
   const row = db.prepare('SELECT * FROM moments WHERE id = ?').get(id) as MomentRow;
   return c.json(mapMoment(row));
 });
@@ -166,10 +204,14 @@ momentRoutes.delete('/:id', (c) => {
   const user = getUser(c);
   const id = c.req.param('id');
   const existing = db
-    .prepare('SELECT id FROM moments WHERE id = ? AND user_id = ?')
-    .get(id, user.id);
+    .prepare('SELECT * FROM moments WHERE id = ? AND user_id = ?')
+    .get(id, user.id) as MomentRow | undefined;
   if (!existing) return c.json({ error: '说说不存在' }, 404);
 
+  const images = imagesFromRow(existing);
   db.prepare('DELETE FROM moments WHERE id = ? AND user_id = ?').run(id, user.id);
+  // 删除说说时清理关联的本地上传图片
+  deleteMomentImages(images);
   return c.json({ ok: true });
 });
+
