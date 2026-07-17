@@ -112,7 +112,7 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-5">
+        <div className="scroll-y flex-1 space-y-6 p-5">
           {/* 外观 */}
           <section>
             <h3 className="mb-1 text-sm font-semibold text-slate-800 dark:text-slate-100">外观</h3>

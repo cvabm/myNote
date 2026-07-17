@@ -189,11 +189,11 @@ export function Sidebar({
   return (
     <aside
       className={clsx(
-        'flex h-full w-[min(18rem,85vw)] shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
+        'flex h-full min-h-0 w-[min(18rem,85vw)] shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
         // 手机：左侧抽屉；桌面：静态侧栏
         'fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out',
         'md:static md:z-auto md:w-64 md:max-w-none md:translate-x-0',
-        mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0 md:shadow-none'
+        mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full pointer-events-none md:pointer-events-auto md:translate-x-0 md:shadow-none'
       )}
     >
       <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 safe-pt dark:border-slate-800">
@@ -275,7 +275,7 @@ export function Sidebar({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain p-2">
+      <div className="scroll-y flex-1 p-2">
         <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           浏览
         </div>

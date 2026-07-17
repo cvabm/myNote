@@ -59,7 +59,7 @@ export function NoteList({
   return (
     <div
       className={clsx(
-        'h-full w-full shrink-0 flex-col border-r border-slate-200 bg-surface-50 md:w-72 dark:border-slate-800 dark:bg-slate-900/50',
+        'h-full min-h-0 w-full shrink-0 flex-col border-r border-slate-200 bg-surface-50 md:w-72 dark:border-slate-800 dark:bg-slate-900/50',
         mobileHidden ? 'hidden md:flex' : 'flex'
       )}
     >
@@ -115,7 +115,7 @@ export function NoteList({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain safe-pb">
+      <div className="scroll-y flex-1 safe-pb">
         {notes.length === 0 && (
           <div className="px-4 py-10 text-center text-sm text-slate-400">
             {searching ? '搜索中…' : isSearch ? '没有匹配的笔记' : '暂无笔记'}

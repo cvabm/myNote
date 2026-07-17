@@ -310,7 +310,7 @@ export function MomentsFeed({
   const canPost = (content.trim().length > 0 || images.length > 0) && remain >= 0 && !posting;
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
       <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-3 safe-pt md:px-6 dark:border-slate-800">
         <button
           type="button"
@@ -345,7 +345,7 @@ export function MomentsFeed({
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+      <div ref={scrollRef} className="scroll-y flex-1">
         <div className="mx-auto w-full max-w-xl px-3 py-4 md:px-6">
           {/* 发布框：搜索时收起，避免干扰结果 */}
           {!isSearch && (
