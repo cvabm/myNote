@@ -14,6 +14,7 @@
 | Markdown 编辑 | 预览 / 编辑 / 分栏，自动保存 |
 | 图片 | 工具栏上传、粘贴、拖拽；预览可删除（正文+文件）；存于 `data/uploads` |
 | 收藏 | 快速收藏重要笔记 |
+| 说说 | 类似 QQ 空间 / 推特的短动态：文字 + 最多 9 图、编辑删除、正文搜索 |
 | 回收站 | 软删除、恢复、永久删除、清空 |
 | 全文搜索 | 即时搜索、关键字高亮（SQLite FTS5） |
 | Docker 部署 | 数据卷持久化 |
@@ -95,7 +96,8 @@ myNote/
 | GET | `/api/auth/me` | 当前用户 |
 | POST | `/api/auth/change-password` | 改密 |
 | CRUD | `/api/notebooks` | 笔记本 |
-| CRUD | `/api/notes` | 笔记（含 trash/restore） |
+| CRUD | `/api/notes` | 笔记（含 trash/restore；列表支持 `limit`/`offset` 分页） |
+| CRUD | `/api/moments` | 说说（短动态；列表支持 `limit`/`before` 游标分页） |
 | POST | `/api/uploads` | 上传图片（需登录） |
 | GET | `/uploads/*` | 访问已上传图片 |
 | GET | `/api/health` | 健康检查 |

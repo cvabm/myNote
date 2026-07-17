@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { initDb } from './db.js';
 import { authRoutes } from './routes/auth.js';
+import { momentRoutes } from './routes/moments.js';
 import { notebookRoutes } from './routes/notebooks.js';
 import { noteRoutes } from './routes/notes.js';
 import { uploadRoutes } from './routes/uploads.js';
@@ -36,6 +37,7 @@ app.get('/api/health', (c) => c.json({ ok: true, name: 'MyNote', version: '1.0.0
 app.route('/api/auth', authRoutes);
 app.route('/api/notebooks', notebookRoutes);
 app.route('/api/notes', noteRoutes);
+app.route('/api/moments', momentRoutes);
 app.route('/api/uploads', uploadRoutes);
 
 // 笔记图片（文件名随机，GET 无需登录以便 Markdown 预览）

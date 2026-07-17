@@ -68,6 +68,20 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_notes_favorite ON notes(is_favorite);
     CREATE INDEX IF NOT EXISTS idx_notebooks_user ON notebooks(user_id);
     CREATE INDEX IF NOT EXISTS idx_notebooks_parent ON notebooks(parent_id);
+
+    -- 说说（类似 QQ 空间 / 推特的短动态）
+    CREATE TABLE IF NOT EXISTS moments (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      images TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_moments_user ON moments(user_id);
+    CREATE INDEX IF NOT EXISTS idx_moments_created ON moments(user_id, created_at DESC);
   `);
 
   // 历史版本曾有标签表，启动时清理
@@ -103,6 +117,7 @@ export function initDb() {
 
 - **多级笔记本**：无限层级组织你的知识
 - **Markdown 编辑**：所见即所得式预览
+- **说说**：像 QQ 空间 / 推特一样发短动态
 - **收藏 / 回收站**
 - **全文搜索**：快速找到任意笔记
 - **Docker 一键部署**

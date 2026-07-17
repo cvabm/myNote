@@ -6,6 +6,7 @@ import {
   ChevronRight,
   FolderPlus,
   LogOut,
+  MessageCircle,
   Plus,
   Search,
   Star,
@@ -135,15 +136,26 @@ export function Sidebar({
   onMobileClose,
   searching = false,
 }: Props) {
-  const [q, setQ] = useState(filter.type === 'search' ? filter.q : '');
+  const [q, setQ] = useState(
+    filter.type === 'search' ? filter.q : filter.type === 'moments' && filter.q ? filter.q : ''
+  );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tree = useMemo(() => buildNotebookTree(notebooks), [notebooks]);
   const activeNotebookId = filter.type === 'notebook' ? filter.id : undefined;
+  const isMomentsView = filter.type === 'moments';
+  const isSearchingNotes = filter.type === 'search';
+  const isSearchingMoments = filter.type === 'moments' && !!filter.q?.trim();
 
   // 离开搜索视图时清空输入框（点「全部/收藏」等）；输入过程中由本地 state 接管，避免防抖回写打断
   useEffect(() => {
-    if (filter.type !== 'search') setQ('');
-  }, [filter.type]);
+    if (filter.type === 'search') return;
+    if (filter.type === 'moments') {
+      // 点「说说」入口会清空 q；有关键字时保持输入框与结果一致
+      setQ(filter.q || '');
+      return;
+    }
+    setQ('');
+  }, [filter]);
 
   useEffect(() => {
     return () => {
@@ -226,7 +238,7 @@ export function Sidebar({
           />
           <input
             className="input py-2 pl-8 pr-8 text-sm md:py-1.5 md:text-xs"
-            placeholder="搜索标题或正文…"
+            placeholder={isMomentsView ? '搜索说说…' : '搜索标题或正文…'}
             value={q}
             onChange={(e) => handleSearchInput(e.target.value)}
             onKeyDown={(e) => {
@@ -251,9 +263,14 @@ export function Sidebar({
             </button>
           )}
         </div>
-        {filter.type === 'search' && (
+        {isSearchingNotes && (
           <div className="mt-1.5 px-0.5 text-[11px] text-slate-400">
-            {searching ? '正在搜索…' : `匹配 “${filter.q}” 的结果已显示在列表`}
+            {searching ? '正在搜索…' : `匹配 “${filter.q}” 的笔记已显示在列表`}
+          </div>
+        )}
+        {isSearchingMoments && (
+          <div className="mt-1.5 px-0.5 text-[11px] text-slate-400">
+            {searching ? '正在搜索…' : `匹配 “${filter.q}” 的说说已显示`}
           </div>
         )}
       </div>
@@ -269,6 +286,14 @@ export function Sidebar({
         >
           <FileText className="h-4 w-4" />
           全部笔记
+        </button>
+        <button
+          type="button"
+          className={clsx('sidebar-item', filter.type === 'moments' && 'sidebar-item-active')}
+          onClick={() => selectFilter({ type: 'moments' })}
+        >
+          <MessageCircle className="h-4 w-4" />
+          说说
         </button>
         <button
           type="button"

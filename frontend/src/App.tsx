@@ -5,18 +5,47 @@ import { LoginPage } from './components/LoginPage';
 import { Sidebar } from './components/Sidebar';
 import { NoteList } from './components/NoteList';
 import { NoteEditor } from './components/NoteEditor';
+import { MomentsFeed } from './components/MomentsFeed';
 import { SettingsModal } from './components/SettingsModal';
+import { readViewRoute, writeViewRoute } from './lib/viewRoute';
 import type { Note, NoteListItem, Notebook, ViewFilter } from './types';
+
+const NOTES_PAGE_SIZE = 30;
+
+/** 首屏从地址栏恢复，避免刷新总回到首页 */
+function getInitialRoute() {
+  if (typeof window === 'undefined') {
+    return { filter: { type: 'all' as const }, selectedId: null as string | null };
+  }
+  return readViewRoute();
+}
+
+function toListItem(note: Note): NoteListItem {
+  return {
+    id: note.id,
+    notebookId: note.notebookId,
+    title: note.title,
+    preview: (note.content || '').slice(0, 160).replace(/\s+/g, ' ').trim(),
+    isFavorite: note.isFavorite,
+    deletedAt: note.deletedAt,
+    sortOrder: note.sortOrder,
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+  };
+}
 
 export default function App() {
   const { user, loading, logout } = useAuth();
+  const initialRoute = useMemo(() => getInitialRoute(), []);
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [notes, setNotes] = useState<NoteListItem[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [notesHasMore, setNotesHasMore] = useState(false);
+  const [notesLoadingMore, setNotesLoadingMore] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(initialRoute.selectedId);
   const [current, setCurrent] = useState<Note | null>(null);
   /** 新建后打开为分栏编辑；从列表点开为预览 */
   const [openInEditMode, setOpenInEditMode] = useState(false);
-  const [filter, setFilter] = useState<ViewFilter>({ type: 'all' });
+  const [filter, setFilter] = useState<ViewFilter>(initialRoute.filter);
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -24,11 +53,17 @@ export default function App() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPatch = useRef<Record<string, unknown>>({});
   const searchSeq = useRef(0);
+  const notesLoadingMoreRef = useRef(false);
+  /** 浏览器后退/前进写入状态时，跳过下一轮 URL 同步，避免打架 */
+  const skipNextUrlWrite = useRef(false);
 
   const loadMeta = useCallback(async () => {
     const nbs = await api.listNotebooks();
     setNotebooks(nbs);
   }, []);
+
+  const isMoments = filter.type === 'moments';
+  const momentsQuery = filter.type === 'moments' ? filter.q || '' : '';
 
   const listParams = useMemo(() => {
     const params: Record<string, string | undefined> = {};
@@ -39,18 +74,54 @@ export default function App() {
     return params;
   }, [filter]);
 
+  /** 重新加载第一页 */
   const loadNotes = useCallback(async () => {
+    if (filter.type === 'moments') return;
     const isSearch = filter.type === 'search';
     const seq = ++searchSeq.current;
     if (isSearch) setSearching(true);
+    else setSearching(false);
     try {
-      const list = await api.listNotes(listParams);
+      const page = await api.listNotes({
+        ...listParams,
+        limit: NOTES_PAGE_SIZE,
+        offset: 0,
+      });
       if (seq !== searchSeq.current) return;
-      setNotes(list);
+      setNotes(page.items);
+      setNotesHasMore(page.hasMore);
     } finally {
       if (seq === searchSeq.current) setSearching(false);
     }
   }, [listParams, filter.type]);
+
+  /** 滚动到底加载下一页 */
+  const loadMoreNotes = useCallback(async () => {
+    if (filter.type === 'moments') return;
+    if (!notesHasMore || notesLoadingMoreRef.current) return;
+    notesLoadingMoreRef.current = true;
+    setNotesLoadingMore(true);
+    const seq = searchSeq.current;
+    try {
+      const page = await api.listNotes({
+        ...listParams,
+        limit: NOTES_PAGE_SIZE,
+        offset: notes.length,
+      });
+      if (seq !== searchSeq.current) return;
+      setNotes((prev) => {
+        const seen = new Set(prev.map((n) => n.id));
+        const extra = page.items.filter((n) => !seen.has(n.id));
+        return [...prev, ...extra];
+      });
+      setNotesHasMore(page.hasMore);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      notesLoadingMoreRef.current = false;
+      setNotesLoadingMore(false);
+    }
+  }, [filter.type, listParams, notesHasMore, notes.length]);
 
   useEffect(() => {
     if (!user) return;
@@ -59,11 +130,43 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
+    setNotes([]);
+    setNotesHasMore(false);
     void loadNotes().catch(console.error);
   }, [user, loadNotes]);
 
+  // 视图 / 选中笔记 → 写入地址栏（刷新可恢复）
   useEffect(() => {
-    if (!selectedId || !user) {
+    if (!user) return;
+    if (skipNextUrlWrite.current) {
+      skipNextUrlWrite.current = false;
+      return;
+    }
+    writeViewRoute(
+      {
+        filter,
+        selectedId: isMoments ? null : selectedId,
+      },
+      'replace'
+    );
+  }, [user, filter, selectedId, isMoments]);
+
+  // 浏览器后退 / 前进
+  useEffect(() => {
+    const onPopState = () => {
+      const route = readViewRoute();
+      skipNextUrlWrite.current = true;
+      setFilter(route.filter);
+      setSelectedId(route.selectedId);
+      setOpenInEditMode(false);
+      setSidebarOpen(false);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId || !user || isMoments) {
       setCurrent(null);
       return;
     }
@@ -82,7 +185,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId, user]);
+  }, [selectedId, user, isMoments]);
 
   const flushSave = useCallback(async () => {
     if (!selectedId) return;
@@ -93,14 +196,24 @@ export default function App() {
     try {
       const updated = await api.updateNote(selectedId, patch as Parameters<typeof api.updateNote>[1]);
       setCurrent(updated);
-      await Promise.all([loadNotes(), loadMeta()]);
+      // 就地更新列表项，避免自动保存时重置分页滚动位置
+      const item = toListItem(updated);
+      setNotes((prev) => {
+        const rest = prev.filter((n) => n.id !== item.id);
+        // 非搜索视图：按更新时间置顶
+        if (filter.type !== 'search') {
+          return [item, ...rest];
+        }
+        return prev.map((n) => (n.id === item.id ? { ...n, ...item } : n));
+      });
+      await loadMeta();
     } catch (e) {
       console.error(e);
       alert(e instanceof Error ? e.message : '保存失败');
     } finally {
       setSaving(false);
     }
-  }, [selectedId, loadNotes, loadMeta]);
+  }, [selectedId, loadMeta, filter.type]);
 
   const scheduleSave = useCallback(
     (patch: Record<string, unknown>) => {
@@ -133,12 +246,26 @@ export default function App() {
           notebooks[0]?.id ??
           null;
       }
+      // 从「说说」新建笔记时切回笔记视图
+      if (filter.type === 'moments') {
+        setFilter({ type: 'all' });
+      }
       const note = await api.createNote({
         title: '未命名笔记',
         content: '',
         notebookId,
       });
-      await loadNotes();
+      const item = toListItem(note);
+      // 在「全部 / 对应笔记本」视图下直接插入顶部；其它视图重载第一页
+      if (
+        filter.type === 'all' ||
+        filter.type === 'moments' ||
+        (filter.type === 'notebook' && filter.id === notebookId)
+      ) {
+        setNotes((prev) => [item, ...prev.filter((n) => n.id !== item.id)]);
+      } else {
+        await loadNotes();
+      }
       await loadMeta();
       setOpenInEditMode(true);
       setSelectedId(note.id);
@@ -204,18 +331,18 @@ export default function App() {
       await flushSave();
     }
     await api.trashNote(selectedId);
+    setNotes((prev) => prev.filter((n) => n.id !== selectedId));
     setSelectedId(null);
     setCurrent(null);
-    await loadNotes();
     await loadMeta();
   }
 
   async function handleRestore() {
     if (!selectedId) return;
     await api.restoreNote(selectedId);
+    setNotes((prev) => prev.filter((n) => n.id !== selectedId));
     setSelectedId(null);
     setCurrent(null);
-    await loadNotes();
     await loadMeta();
   }
 
@@ -223,17 +350,18 @@ export default function App() {
     if (!selectedId) return;
     if (!window.confirm('永久删除后无法恢复，确定？')) return;
     await api.deleteNote(selectedId);
+    setNotes((prev) => prev.filter((n) => n.id !== selectedId));
     setSelectedId(null);
     setCurrent(null);
-    await loadNotes();
   }
 
   async function handleEmptyTrash() {
     if (!window.confirm('清空回收站？此操作不可撤销。')) return;
     await api.emptyTrash();
+    setNotes([]);
+    setNotesHasMore(false);
     setSelectedId(null);
     setCurrent(null);
-    await loadNotes();
   }
 
   if (loading) {
@@ -272,7 +400,14 @@ export default function App() {
         onCreateNote={handleCreateNote}
         onSearch={(q) => {
           if (!q) {
-            setFilter((prev) => (prev.type === 'search' ? { type: 'all' } : prev));
+            setFilter((prev) => {
+              if (prev.type === 'search') return { type: 'all' };
+              if (prev.type === 'moments') return { type: 'moments' };
+              return prev;
+            });
+          } else if (filter.type === 'moments') {
+            // 在说说页内搜索说说
+            setFilter({ type: 'moments', q });
           } else {
             setFilter({ type: 'search', q });
           }
@@ -290,46 +425,62 @@ export default function App() {
       />
 
       <div className="flex min-w-0 flex-1 overflow-hidden">
-        <NoteList
-          notes={notes}
-          selectedId={selectedId}
-          onSelect={(id) => {
-            setOpenInEditMode(false);
-            setSelectedId(id);
-            setSidebarOpen(false);
-          }}
-          isTrash={filter.type === 'trash'}
-          onEmptyTrash={handleEmptyTrash}
-          onOpenSidebar={() => setSidebarOpen(true)}
-          onCreateNote={handleCreateNote}
-          mobileHidden={mobileShowEditor}
-          highlightQuery={filter.type === 'search' ? filter.q : ''}
-          searching={searching}
-        />
-        {selectedId && current ? (
-          <NoteEditor
-            note={current}
-            notebooks={notebooks}
-            saving={saving}
-            onChange={handleNoteChange}
-            onTrash={handleTrash}
-            onRestore={handleRestore}
-            onDeleteForever={handleDeleteForever}
-            onClose={() => {
-              setOpenInEditMode(false);
-              setSelectedId(null);
-            }}
-            initialEditorMode={openInEditMode ? 'split' : 'preview'}
+        {isMoments ? (
+          <MomentsFeed
+            username={user.displayName || user.username}
+            searchQuery={momentsQuery}
+            onSearchingChange={setSearching}
+            onOpenSidebar={() => setSidebarOpen(true)}
           />
-        ) : selectedId ? (
-          <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400 dark:bg-slate-950">
-            加载笔记…
-          </div>
         ) : (
-          <div className="hidden h-full min-w-0 flex-1 flex-col items-center justify-center bg-white text-slate-400 dark:bg-slate-950 md:flex">
-            <div className="mb-2 text-5xl opacity-20">✎</div>
-            <p className="px-6 text-center text-sm">选择或新建一篇笔记开始书写</p>
-          </div>
+          <>
+            <NoteList
+              notes={notes}
+              selectedId={selectedId}
+              onSelect={(id) => {
+                setOpenInEditMode(false);
+                setSelectedId(id);
+                setSidebarOpen(false);
+              }}
+              isTrash={filter.type === 'trash'}
+              onEmptyTrash={handleEmptyTrash}
+              onOpenSidebar={() => setSidebarOpen(true)}
+              onCreateNote={handleCreateNote}
+              mobileHidden={mobileShowEditor}
+              highlightQuery={filter.type === 'search' ? filter.q : ''}
+              searching={searching}
+              hasMore={notesHasMore}
+              loadingMore={notesLoadingMore}
+              onLoadMore={() => {
+                void loadMoreNotes();
+              }}
+            />
+            {selectedId && current ? (
+              <NoteEditor
+                note={current}
+                notebooks={notebooks}
+                saving={saving}
+                onChange={handleNoteChange}
+                onTrash={handleTrash}
+                onRestore={handleRestore}
+                onDeleteForever={handleDeleteForever}
+                onClose={() => {
+                  setOpenInEditMode(false);
+                  setSelectedId(null);
+                }}
+                initialEditorMode={openInEditMode ? 'split' : 'preview'}
+              />
+            ) : selectedId ? (
+              <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400 dark:bg-slate-950">
+                加载笔记…
+              </div>
+            ) : (
+              <div className="hidden h-full min-w-0 flex-1 flex-col items-center justify-center bg-white text-slate-400 dark:bg-slate-950 md:flex">
+                <div className="mb-2 text-5xl opacity-20">✎</div>
+                <p className="px-6 text-center text-sm">选择或新建一篇笔记开始书写</p>
+              </div>
+            )}
+          </>
         )}
       </div>
 

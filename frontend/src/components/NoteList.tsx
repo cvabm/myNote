@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { Loader2, Menu, Plus, Star, Trash2 } from 'lucide-react';
 import type { NoteListItem } from '../types';
@@ -14,6 +15,9 @@ type Props = {
   mobileHidden?: boolean;
   highlightQuery?: string;
   searching?: boolean;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 };
 
 export function NoteList({
@@ -27,9 +31,30 @@ export function NoteList({
   mobileHidden,
   highlightQuery = '',
   searching = false,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
 }: Props) {
   const isSearch = !!highlightQuery.trim();
   const q = highlightQuery.trim();
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!hasMore || !onLoadMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          onLoadMore();
+        }
+      },
+      { root: el.parentElement, rootMargin: '120px', threshold: 0 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, onLoadMore, notes.length]);
 
   return (
     <div
@@ -54,13 +79,17 @@ export function NoteList({
               {isTrash ? '回收站' : isSearch ? '搜索结果' : '笔记'}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              {searching && <Loader2 className="h-3 w-3 animate-spin" />}
+              {(searching || loadingMore) && <Loader2 className="h-3 w-3 animate-spin" />}
               {isSearch ? (
                 <span className="truncate">
-                  “{q}” · {notes.length} 条
+                  “{q}” · 已加载 {notes.length}
+                  {hasMore ? '+' : ''} 条
                 </span>
               ) : (
-                <span>{notes.length} 篇</span>
+                <span>
+                  已加载 {notes.length}
+                  {hasMore ? '+' : ''} 篇
+                </span>
               )}
             </div>
           </div>
@@ -126,6 +155,18 @@ export function NoteList({
             </div>
           </button>
         ))}
+
+        {/* 无限滚动哨兵 */}
+        <div ref={sentinelRef} className="h-1 w-full shrink-0" aria-hidden />
+        {loadingMore && (
+          <div className="flex items-center justify-center gap-1.5 py-3 text-xs text-slate-400">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            加载更多…
+          </div>
+        )}
+        {!loadingMore && !hasMore && notes.length > 0 && (
+          <div className="py-3 text-center text-[11px] text-slate-400">已经到底了</div>
+        )}
       </div>
     </div>
   );

@@ -38,4 +38,21 @@ export type ViewFilter =
   | { type: 'notebook'; id: string }
   | { type: 'favorite' }
   | { type: 'trash' }
-  | { type: 'search'; q: string };
+  | { type: 'search'; q: string }
+  /** 说说；可选 q 为正文搜索关键字 */
+  | { type: 'moments'; q?: string };
+
+/** 说说（类似 QQ 空间 / 推特的短动态） */
+export type Moment = {
+  id: string;
+  content: string;
+  images: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** 列表分页响应 */
+export type PageResult<T> = {
+  items: T[];
+  hasMore: boolean;
+};

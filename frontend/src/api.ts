@@ -1,4 +1,4 @@
-import type { Note, NoteListItem, Notebook, User } from './types';
+import type { Moment, Note, NoteListItem, Notebook, PageResult, User } from './types';
 
 const TOKEN_KEY = 'mynote_token';
 
@@ -63,13 +63,13 @@ export const api = {
     return request<{ ok: boolean }>(`/api/notebooks/${id}`, { method: 'DELETE' });
   },
 
-  listNotes(params: Record<string, string | undefined> = {}) {
+  listNotes(params: Record<string, string | number | undefined> = {}) {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== '') qs.set(k, v);
+      if (v !== undefined && v !== '') qs.set(k, String(v));
     });
     const q = qs.toString();
-    return request<NoteListItem[]>(`/api/notes${q ? `?${q}` : ''}`);
+    return request<PageResult<NoteListItem>>(`/api/notes${q ? `?${q}` : ''}`);
   },
   getNote(id: string) {
     return request<Note>(`/api/notes/${id}`);
@@ -105,6 +105,32 @@ export const api = {
   },
   emptyTrash() {
     return request<{ ok: boolean; count: number }>('/api/notes?trash=1', { method: 'DELETE' });
+  },
+
+  // —— 说说 ——
+  listMoments(params: { limit?: number; before?: string; beforeId?: string; q?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.before) qs.set('before', params.before);
+    if (params.beforeId) qs.set('beforeId', params.beforeId);
+    if (params.q) qs.set('q', params.q);
+    const q = qs.toString();
+    return request<PageResult<Moment>>(`/api/moments${q ? `?${q}` : ''}`);
+  },
+  createMoment(data: { content: string; images?: string[] }) {
+    return request<Moment>('/api/moments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  updateMoment(id: string, data: Partial<{ content: string; images: string[] }>) {
+    return request<Moment>(`/api/moments/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteMoment(id: string) {
+    return request<{ ok: boolean }>(`/api/moments/${id}`, { method: 'DELETE' });
   },
 
   /** 上传笔记图片，返回可写入 Markdown 的 url */

@@ -92,6 +92,11 @@ noteRoutes.get('/', (c) => {
   const favorite = c.req.query('favorite');
   const trash = c.req.query('trash');
   const q = (c.req.query('q') || '').trim();
+  // 分页：默认 30，最多 100；取 limit+1 判断 hasMore
+  const limitRaw = Number(c.req.query('limit') || 30);
+  const limit = Math.min(100, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 30));
+  const offsetRaw = Number(c.req.query('offset') || 0);
+  const offset = Math.max(0, Number.isFinite(offsetRaw) ? Math.floor(offsetRaw) : 0);
 
   let sql = `
     SELECT n.*
@@ -151,14 +156,14 @@ noteRoutes.get('/', (c) => {
       searchIds = likeRows.map((r) => r.id);
     }
     if (searchIds.length === 0) {
-      return c.json([]);
+      return c.json({ items: [], hasMore: false });
     }
     const placeholders = searchIds.map(() => '?').join(',');
     sql += ` AND n.id IN (${placeholders}) `;
     params.push(...searchIds);
   }
 
-  sql += ` ORDER BY n.updated_at DESC `;
+  sql += ` ORDER BY n.updated_at DESC, n.id DESC `;
 
   let rows = db.prepare(sql).all(...params) as NoteRow[];
 
@@ -167,7 +172,12 @@ noteRoutes.get('/', (c) => {
     rows = rows.slice().sort((a, b) => (order.get(a.id) ?? 9999) - (order.get(b.id) ?? 9999));
   }
 
-  return c.json(rows.map((r) => mapNote(r, false, q)));
+  // 内存切片分页（搜索需先按相关度排序）
+  const pageRows = rows.slice(offset, offset + limit + 1);
+  const hasMore = pageRows.length > limit;
+  const items = pageRows.slice(0, limit).map((r) => mapNote(r, false, q));
+
+  return c.json({ items, hasMore });
 });
 
 noteRoutes.get('/:id', (c) => {
