@@ -486,6 +486,7 @@ export function MarkdownEditor({
             dangerouslySetInnerHTML={{ __html: html || '<p class="text-slate-400">暂无内容</p>' }}
             onClick={(e) => {
               const target = e.target as HTMLElement;
+              const root = e.currentTarget as HTMLElement;
 
               const copyBtn = target.closest('.code-copy-btn');
               if (copyBtn instanceof HTMLButtonElement) {
@@ -505,6 +506,25 @@ export function MarkdownEditor({
                 e.stopPropagation();
                 const src = delBtn.getAttribute('data-src') || '';
                 void handleDeleteImage(src);
+                return;
+              }
+
+              // 文内锚点：#id 在预览滚动容器内平滑定位（避免改 location.hash）
+              const link = target.closest('a');
+              if (link instanceof HTMLAnchorElement) {
+                const href = link.getAttribute('href') || '';
+                if (href.startsWith('#') && href.length > 1) {
+                  e.preventDefault();
+                  let id = href.slice(1);
+                  try {
+                    id = decodeURIComponent(id);
+                  } catch {
+                    /* keep raw */
+                  }
+                  if (!id) return;
+                  const el = root.querySelector(`#${CSS.escape(id)}`);
+                  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
               }
             }}
           />

@@ -80,6 +80,33 @@ function highlightCode(code: string, lang?: string) {
   }
 }
 
+/**
+ * 标题 slug：保留字母/数字/CJK 等文字，空格转 `-`。
+ * 与 GitHub 风格接近，便于手写 `[跳转](#标题)`。
+ */
+export function slugifyHeading(text: string): string {
+  const s = text
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\p{M}\s\-_]/gu, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return s || 'section';
+}
+
+/** 单次渲染内的标题 id 去重计数 */
+let headingSlugCounts: Map<string, number> | null = null;
+
+function uniqueHeadingId(text: string): string {
+  const base = slugifyHeading(text);
+  const counts = headingSlugCounts ?? new Map<string, number>();
+  if (!headingSlugCounts) headingSlugCounts = counts;
+  const n = counts.get(base) ?? 0;
+  counts.set(base, n + 1);
+  return n === 0 ? base : `${base}-${n}`;
+}
+
 marked.setOptions({
   gfm: true,
   breaks: true,
@@ -90,6 +117,15 @@ let imageDeleteEnabled = false;
 
 marked.use({
   renderer: {
+    heading(this: { parser: { parseInline: (t: Tokens.Heading['tokens']) => string } }, {
+      tokens,
+      depth,
+      text,
+    }: Tokens.Heading) {
+      const id = uniqueHeadingId(text);
+      const inner = this.parser.parseInline(tokens);
+      return `<h${depth} id="${escapeHtml(id)}">${inner}</h${depth}>\n`;
+    },
     code({ text, lang }: Tokens.Code) {
       const langName = (lang || '').split(/\s+/)[0] || '';
       const langClass = langName ? ` language-${escapeHtml(langName)}` : '';
@@ -134,6 +170,7 @@ export function renderMarkdown(
   opts?: { showImageDelete?: boolean }
 ): string {
   imageDeleteEnabled = !!opts?.showImageDelete;
+  headingSlugCounts = new Map();
   try {
     const raw = marked.parse(md || '', { async: false }) as string;
     return sanitizeHtml(raw);
@@ -141,6 +178,7 @@ export function renderMarkdown(
     return `<pre>${escapeHtml(md || '')}</pre>`;
   } finally {
     imageDeleteEnabled = false;
+    headingSlugCounts = null;
   }
 }
 
