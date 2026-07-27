@@ -96,6 +96,35 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 }
 
 /* 轻量 Markdown 预览 */
+/* 文档目录 */
+.md-toc-item {
+  display: block;
+  width: 100%;
+  border-radius: 0.375rem;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+  padding-right: 0.5rem;
+  text-align: left;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+.md-toc-item:hover {
+  color: #4f46e5;
+  background-color: rgba(79, 70, 229, 0.08);
+}
+html.dark .md-toc-item {
+  color: #94a3b8;
+}
+html.dark .md-toc-item:hover {
+  color: #a5b4fc;
+  background-color: rgba(129, 140, 248, 0.12);
+}
+
 .md-preview {
   font-size: 15px;
   line-height: 1.75;

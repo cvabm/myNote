@@ -88,23 +88,70 @@ export function slugifyHeading(text: string): string {
   const s = text
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\p{M}\s\-_]/gu, '')
+    .replace(/[^\p{L}\p{M}\p{N}\s\-_]/gu, '')
     .replace(/[\s_]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
   return s || 'section';
 }
 
+export type TocItem = {
+  /** 1–6 */
+  depth: number;
+  /** 展示用标题（尽量去掉常见行内标记） */
+  text: string;
+  /** 与渲染结果 `<hN id="...">` 一致 */
+  id: string;
+};
+
+/** 根据与 heading renderer 相同的规则生成去重 id */
+function nextHeadingId(text: string, counts: Map<string, number>): string {
+  const base = slugifyHeading(text);
+  const n = counts.get(base) ?? 0;
+  counts.set(base, n + 1);
+  return n === 0 ? base : `${base}-${n}`;
+}
+
+/** 展示用：去掉常见 Markdown 行内标记，保留可读文字 */
+function headingDisplayText(raw: string): string {
+  const t = raw
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/[*_~]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return t || raw.trim() || '未命名';
+}
+
+/**
+ * 从 Markdown 源码提取标题目录（与 renderMarkdown 的 id 规则一致）。
+ * 使用 marked.lexer，自动跳过代码块内的 `#`。
+ */
+export function extractHeadings(md: string): TocItem[] {
+  const counts = new Map<string, number>();
+  const items: TocItem[] = [];
+  try {
+    const tokens = marked.lexer(md || '');
+    for (const token of tokens) {
+      if (token.type !== 'heading') continue;
+      const h = token as Tokens.Heading;
+      const text = headingDisplayText(h.text);
+      const id = nextHeadingId(h.text, counts);
+      items.push({ depth: h.depth, text, id });
+    }
+  } catch {
+    // 解析失败时不提供目录
+  }
+  return items;
+}
+
 /** 单次渲染内的标题 id 去重计数 */
 let headingSlugCounts: Map<string, number> | null = null;
 
 function uniqueHeadingId(text: string): string {
-  const base = slugifyHeading(text);
-  const counts = headingSlugCounts ?? new Map<string, number>();
-  if (!headingSlugCounts) headingSlugCounts = counts;
-  const n = counts.get(base) ?? 0;
-  counts.set(base, n + 1);
-  return n === 0 ? base : `${base}-${n}`;
+  if (!headingSlugCounts) headingSlugCounts = new Map();
+  return nextHeadingId(text, headingSlugCounts);
 }
 
 marked.setOptions({
