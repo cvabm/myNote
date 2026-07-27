@@ -20,13 +20,16 @@ import {
   Link as LinkIcon,
   List,
   ListOrdered,
+  ListTree,
   Loader2,
   PenLine,
   Quote,
+  X,
 } from 'lucide-react';
 import { api } from '../api';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import {
+  extractHeadings,
   removeImageFromMarkdown,
   renderMarkdown,
   uploadNameFromSrc,
@@ -178,18 +181,46 @@ export function MarkdownEditor({
   const isMobile = useIsMobile();
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   // 手机无分栏时，split 降级为 edit
   const [mode, setMode] = useState<EditorMode>(() =>
     initialMode === 'split' && isMobile ? 'edit' : initialMode
   );
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // 桌面默认展开目录，手机默认收起（有标题时才显示）
+  const [tocOpen, setTocOpen] = useState(() => !isMobile);
 
   const effectiveMode: EditorMode = readOnly ? 'preview' : mode;
 
   const html = useMemo(
     () => renderMarkdown(value || '', { showImageDelete: !readOnly }),
     [value, readOnly]
+  );
+
+  const toc = useMemo(() => extractHeadings(value || ''), [value]);
+  const tocMinDepth = useMemo(
+    () => (toc.length ? Math.min(...toc.map((t) => t.depth)) : 1),
+    [toc]
+  );
+
+  const scrollToHeading = useCallback(
+    (id: string) => {
+      if (!id) return;
+      const go = () => {
+        const el = previewRef.current?.querySelector(`#${CSS.escape(id)}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      // 纯编辑模式无预览时，先切到预览/分栏再滚
+      if (effectiveMode === 'edit') {
+        setMode(isMobile ? 'preview' : 'split');
+        requestAnimationFrame(() => requestAnimationFrame(go));
+      } else {
+        go();
+      }
+      if (isMobile) setTocOpen(false);
+    },
+    [effectiveMode, isMobile]
   );
 
   const runTool = useCallback(
@@ -357,6 +388,27 @@ export function MarkdownEditor({
 
   const showEdit = effectiveMode === 'edit' || effectiveMode === 'split';
   const showPreview = effectiveMode === 'preview' || effectiveMode === 'split';
+  const hasToc = toc.length > 0;
+
+  const tocList = hasToc ? (
+    <nav className="md-toc-nav scroll-y min-h-0 flex-1 py-1" aria-label="文档目录">
+      <ul className="space-y-0.5 px-1.5 pb-2">
+        {toc.map((item) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              className="md-toc-item"
+              style={{ paddingLeft: `${0.5 + (item.depth - tocMinDepth) * 0.75}rem` }}
+              title={item.text}
+              onClick={() => scrollToHeading(item.id)}
+            >
+              {item.text}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  ) : null;
 
   return (
     <div
@@ -412,7 +464,7 @@ export function MarkdownEditor({
               if (f) void uploadAndInsert(f);
             }}
           />
-          <span className="mx-1 h-5 w-px bg-slate-200" />
+          <span className="mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700" />
           <button
             type="button"
             title="编辑"
@@ -448,88 +500,172 @@ export function MarkdownEditor({
               <Columns2 className="h-4 w-4" />
             </button>
           )}
+          {hasToc && (
+            <>
+              <span className="mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700" />
+              <button
+                type="button"
+                title={tocOpen ? '隐藏目录' : '显示目录'}
+                className={clsx(
+                  'btn-ghost !rounded-md !px-2 !py-2 text-xs',
+                  tocOpen && 'bg-white shadow-sm dark:bg-slate-800'
+                )}
+                onClick={() => setTocOpen((v) => !v)}
+              >
+                <ListTree className="h-4 w-4" />
+                <span className="hidden sm:inline">目录</span>
+                <span className="tabular-nums text-slate-400">{toc.length}</span>
+              </button>
+            </>
+          )}
         </div>
       )}
 
-      <div
-        className={clsx(
-          'min-h-0 flex-1',
-          effectiveMode === 'split'
-            ? 'grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-800'
-            : 'flex'
-        )}
-      >
-        {showEdit && (
-          <textarea
-            ref={taRef}
+      {/* 只读时无工具栏：单独提供目录开关 */}
+      {readOnly && hasToc && (
+        <div className="flex items-center border-b border-slate-200 bg-slate-50 px-2 py-1 dark:border-slate-800 dark:bg-slate-900">
+          <button
+            type="button"
+            title={tocOpen ? '隐藏目录' : '显示目录'}
             className={clsx(
-              'h-full min-h-0 w-full resize-none border-0 bg-white px-4 py-3 font-mono text-base leading-relaxed text-slate-800 outline-none placeholder:text-slate-300 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-600 sm:text-[15px]',
-              // iOS：在输入框内允许纵向滑动
-              '[touch-action:pan-y] [-webkit-overflow-scrolling:touch]',
-              effectiveMode === 'edit' && 'flex-1'
+              'btn-ghost !rounded-md !px-2 !py-1.5 text-xs',
+              tocOpen && 'bg-white shadow-sm dark:bg-slate-800'
             )}
-            value={value}
-            disabled={readOnly}
-            placeholder={placeholder || '开始用 Markdown 书写…（可粘贴或拖入图片）'}
-            spellCheck={false}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={onKeyDown}
-            onPaste={(e) => void onPaste(e)}
-          />
-        )}
-        {showPreview && (
-          <div
-            className={clsx(
-              'md-preview scroll-y h-full min-h-0 px-4 py-3',
-              effectiveMode === 'preview' && 'flex-1'
-            )}
-            dangerouslySetInnerHTML={{ __html: html || '<p class="text-slate-400">暂无内容</p>' }}
-            onClick={(e) => {
-              const target = e.target as HTMLElement;
-              const root = e.currentTarget as HTMLElement;
+            onClick={() => setTocOpen((v) => !v)}
+          >
+            <ListTree className="h-4 w-4" />
+            目录
+            <span className="tabular-nums text-slate-400">{toc.length}</span>
+          </button>
+        </div>
+      )}
 
-              const copyBtn = target.closest('.code-copy-btn');
-              if (copyBtn instanceof HTMLButtonElement) {
-                e.preventDefault();
-                const block = copyBtn.closest('.code-block');
-                const raw = block?.querySelector(
-                  'textarea.code-raw'
-                ) as HTMLTextAreaElement | null;
-                const text = raw?.value ?? '';
-                void copyTextToClipboard(text).then((ok) => flashCopyButton(copyBtn, ok));
-                return;
-              }
+      <div className="flex min-h-0 flex-1">
+        <div
+          className={clsx(
+            'min-h-0 min-w-0 flex-1',
+            effectiveMode === 'split'
+              ? 'grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-800'
+              : 'flex'
+          )}
+        >
+          {showEdit && (
+            <textarea
+              ref={taRef}
+              className={clsx(
+                'h-full min-h-0 w-full resize-none border-0 bg-white px-4 py-3 font-mono text-base leading-relaxed text-slate-800 outline-none placeholder:text-slate-300 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-600 sm:text-[15px]',
+                // iOS：在输入框内允许纵向滑动
+                '[touch-action:pan-y] [-webkit-overflow-scrolling:touch]',
+                effectiveMode === 'edit' && 'flex-1'
+              )}
+              value={value}
+              disabled={readOnly}
+              placeholder={placeholder || '开始用 Markdown 书写…（可粘贴或拖入图片）'}
+              spellCheck={false}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={onKeyDown}
+              onPaste={(e) => void onPaste(e)}
+            />
+          )}
+          {showPreview && (
+            <div
+              ref={previewRef}
+              className={clsx(
+                'md-preview scroll-y h-full min-h-0 px-4 py-3',
+                effectiveMode === 'preview' && 'flex-1'
+              )}
+              dangerouslySetInnerHTML={{
+                __html: html || '<p class="text-slate-400">暂无内容</p>',
+              }}
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                const root = e.currentTarget as HTMLElement;
 
-              const delBtn = target.closest('.md-img-delete');
-              if (delBtn instanceof HTMLButtonElement) {
-                e.preventDefault();
-                e.stopPropagation();
-                const src = delBtn.getAttribute('data-src') || '';
-                void handleDeleteImage(src);
-                return;
-              }
-
-              // 文内锚点：#id 在预览滚动容器内平滑定位（避免改 location.hash）
-              const link = target.closest('a');
-              if (link instanceof HTMLAnchorElement) {
-                const href = link.getAttribute('href') || '';
-                if (href.startsWith('#') && href.length > 1) {
+                const copyBtn = target.closest('.code-copy-btn');
+                if (copyBtn instanceof HTMLButtonElement) {
                   e.preventDefault();
-                  let id = href.slice(1);
-                  try {
-                    id = decodeURIComponent(id);
-                  } catch {
-                    /* keep raw */
-                  }
-                  if (!id) return;
-                  const el = root.querySelector(`#${CSS.escape(id)}`);
-                  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  const block = copyBtn.closest('.code-block');
+                  const raw = block?.querySelector(
+                    'textarea.code-raw'
+                  ) as HTMLTextAreaElement | null;
+                  const text = raw?.value ?? '';
+                  void copyTextToClipboard(text).then((ok) => flashCopyButton(copyBtn, ok));
+                  return;
                 }
-              }
-            }}
-          />
+
+                const delBtn = target.closest('.md-img-delete');
+                if (delBtn instanceof HTMLButtonElement) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const src = delBtn.getAttribute('data-src') || '';
+                  void handleDeleteImage(src);
+                  return;
+                }
+
+                // 文内锚点：#id 在预览滚动容器内平滑定位（避免改 location.hash）
+                const link = target.closest('a');
+                if (link instanceof HTMLAnchorElement) {
+                  const href = link.getAttribute('href') || '';
+                  if (href.startsWith('#') && href.length > 1) {
+                    e.preventDefault();
+                    let id = href.slice(1);
+                    try {
+                      id = decodeURIComponent(id);
+                    } catch {
+                      /* keep raw */
+                    }
+                    if (!id) return;
+                    const el = root.querySelector(`#${CSS.escape(id)}`);
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }
+              }}
+            />
+          )}
+        </div>
+
+        {/* 桌面：右侧常驻目录栏 */}
+        {hasToc && tocOpen && !isMobile && (
+          <aside className="md-toc-panel flex w-48 shrink-0 flex-col border-l border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/60 lg:w-56">
+            <div className="flex items-center justify-between border-b border-slate-200 px-2.5 py-1.5 dark:border-slate-800">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                目录
+              </span>
+              <button
+                type="button"
+                className="btn-ghost !rounded-md !p-1"
+                title="关闭目录"
+                onClick={() => setTocOpen(false)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {tocList}
+          </aside>
         )}
       </div>
+
+      {/* 手机：底部浮层目录 */}
+      {hasToc && tocOpen && isMobile && (
+        <div className="absolute inset-x-0 bottom-0 z-20 flex max-h-[55%] flex-col rounded-t-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 dark:border-slate-800">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              目录
+              <span className="ml-1.5 text-xs font-normal text-slate-400">{toc.length}</span>
+            </span>
+            <button
+              type="button"
+              className="btn-ghost !rounded-md !p-1.5"
+              title="关闭"
+              onClick={() => setTocOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {tocList}
+        </div>
+      )}
+
     </div>
   );
 }
