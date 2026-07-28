@@ -3,16 +3,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
+import { resolveDataPath } from './paths.js';
 
-const DB_PATH = process.env.DB_PATH || './data/mynote.db';
+/** 始终解析到仓库根 data/，避免 cwd=backend 时落到 backend/data */
+export const DB_PATH = resolveDataPath(process.env.DB_PATH || './data/mynote.db');
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
 
-fs.mkdirSync(path.dirname(path.resolve(DB_PATH)), { recursive: true });
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 export const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+console.log(`[db] ${DB_PATH}`);
 
 export function initDb() {
   db.exec(`
@@ -82,6 +85,51 @@ export function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_moments_user ON moments(user_id);
     CREATE INDEX IF NOT EXISTS idx_moments_created ON moments(user_id, created_at DESC);
+
+    -- 知识图节点：concept 为游离概念；note/notebook 通过 ref_id 指向正文层
+    CREATE TABLE IF NOT EXISTS graph_nodes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      ref_id TEXT,
+      title TEXT NOT NULL DEFAULT '',
+      color TEXT NOT NULL DEFAULT '#6366f1',
+      x REAL,
+      y REAL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_graph_nodes_ref
+      ON graph_nodes(user_id, type, ref_id)
+      WHERE ref_id IS NOT NULL;
+
+    CREATE INDEX IF NOT EXISTS idx_graph_nodes_user ON graph_nodes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_graph_nodes_type ON graph_nodes(user_id, type);
+
+    -- 知识图边：wiki / system(笔记本树) / manual
+    CREATE TABLE IF NOT EXISTS graph_edges (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      from_id TEXT NOT NULL,
+      to_id TEXT NOT NULL,
+      relation TEXT NOT NULL DEFAULT 'related',
+      source TEXT NOT NULL DEFAULT 'manual',
+      weight REAL NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (from_id) REFERENCES graph_nodes(id) ON DELETE CASCADE,
+      FOREIGN KEY (to_id) REFERENCES graph_nodes(id) ON DELETE CASCADE
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_graph_edges_pair
+      ON graph_edges(user_id, from_id, to_id, source, relation);
+
+    CREATE INDEX IF NOT EXISTS idx_graph_edges_user ON graph_edges(user_id);
+    CREATE INDEX IF NOT EXISTS idx_graph_edges_from ON graph_edges(from_id);
+    CREATE INDEX IF NOT EXISTS idx_graph_edges_to ON graph_edges(to_id);
   `);
 
   // 历史版本曾有标签表，启动时清理
@@ -118,7 +166,7 @@ export function initDb() {
 - **多级笔记本**：无限层级组织你的知识
 - **Markdown 编辑**：所见即所得式预览
 - **说说**：像 QQ 空间 / 推特一样发短动态
-- **收藏 / 回收站**
+- **回收站**
 - **全文搜索**：快速找到任意笔记
 - **Docker 一键部署**
 

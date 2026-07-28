@@ -1,5 +1,4 @@
 import { api } from '../api';
-import type { Notebook } from '../types';
 
 export type ImportFile = {
   /** 相对路径，如 a/b/note.md；无目录时仅为文件名 */
@@ -8,16 +7,11 @@ export type ImportFile = {
 };
 
 export type ImportOptions = {
-  /** true：不按文件夹建笔记本，全部进默认笔记本 */
+  /** 保留字段兼容设置页；现已统一不按目录建笔记本 */
   flat: boolean;
   skipEmpty: boolean;
   onProgress?: (done: number, total: number, current: string) => void;
 };
-
-function resolveDefaultNotebookId(list: Notebook[]): string | null {
-  const def = list.find((n) => n.name === '默认笔记本');
-  return def?.id ?? list.find((n) => !n.parentId)?.id ?? list[0]?.id ?? null;
-}
 
 export type ImportResult = {
   ok: number;
@@ -50,8 +44,6 @@ export async function filesToImportList(fileList: FileList | File[]): Promise<Im
     );
     out.push({ relativePath, content });
   }
-  // 去掉路径第一段（选文件夹时浏览器会带上根文件夹名）
-  // 若所有文件都共享同一顶级目录，则剥掉，避免多出一个多余笔记本
   if (out.length > 0) {
     const firstSegs = out.map((x) => x.relativePath.split('/')[0]);
     const allSameRoot =
@@ -68,54 +60,14 @@ export async function filesToImportList(fileList: FileList | File[]): Promise<Im
   return out;
 }
 
+/** 导入为全局笔记（无笔记本）；结构请在思维导图中浏览 */
 export async function importMarkdownFiles(
   items: ImportFile[],
   options: ImportOptions
 ): Promise<ImportResult> {
   const result: ImportResult = { ok: 0, skip: 0, fail: 0, errors: [] };
-  const existing = await api.listNotebooks();
-  /** pathKey -> id，如 "工作/项目A" */
-  const cache = new Map<string, string>();
-
-  const list: Notebook[] = [...existing];
-  let defaultNotebookId = resolveDefaultNotebookId(list);
-
-  // 没有默认笔记本时自动创建一个
-  if (!defaultNotebookId) {
-    const created = await api.createNotebook({ name: '默认笔记本', parentId: null });
-    list.push(created);
-    defaultNotebookId = created.id;
-  }
-
-  async function ensureNotebookPath(relDir: string): Promise<string | null> {
-    // 扁平导入：全部进默认笔记本
-    if (options.flat) return defaultNotebookId;
-    // 根目录文件：进默认笔记本（与新建笔记一致）
-    if (!relDir || relDir === '.') return defaultNotebookId;
-
-    const parts = relDir.split('/').filter(Boolean);
-    let parentId: string | null = null;
-    let pathKey = '';
-    for (const name of parts) {
-      pathKey = pathKey ? `${pathKey}/${name}` : name;
-      if (cache.has(pathKey)) {
-        parentId = cache.get(pathKey)!;
-        continue;
-      }
-      let found = list.find(
-        (n) => n.name === name && (n.parentId || null) === (parentId || null)
-      );
-      if (!found) {
-        found = await api.createNotebook({ name, parentId });
-        list.push(found);
-      }
-      cache.set(pathKey, found.id);
-      parentId = found.id;
-    }
-    return parentId;
-  }
-
   const total = items.length;
+
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const fileName = item.relativePath.split('/').pop() || item.relativePath;
@@ -127,15 +79,11 @@ export async function importMarkdownFiles(
     }
 
     try {
-      const dir = item.relativePath.includes('/')
-        ? item.relativePath.slice(0, item.relativePath.lastIndexOf('/'))
-        : '';
-      const notebookId = (await ensureNotebookPath(dir)) ?? defaultNotebookId;
       const title = titleFromMarkdown(item.content, fileName);
       await api.createNote({
         title,
         content: item.content,
-        notebookId,
+        notebookId: null,
       });
       result.ok++;
     } catch (e) {

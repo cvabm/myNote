@@ -1,4 +1,15 @@
-import type { Moment, Note, NoteListItem, Notebook, PageResult, User } from './types';
+import type {
+  GraphData,
+  GraphEdge,
+  GraphNode,
+  MindmapData,
+  Moment,
+  Note,
+  NoteListItem,
+  Notebook,
+  PageResult,
+  User,
+} from './types';
 
 const TOKEN_KEY = 'mynote_token';
 
@@ -86,7 +97,6 @@ export const api = {
       title: string;
       content: string;
       notebookId: string | null;
-      isFavorite: boolean;
     }>
   ) {
     return request<Note>(`/api/notes/${id}`, {
@@ -131,6 +141,52 @@ export const api = {
   },
   deleteMoment(id: string) {
     return request<{ ok: boolean }>(`/api/moments/${id}`, { method: 'DELETE' });
+  },
+
+  // —— 思维导图 ——
+  getMindmap() {
+    return request<MindmapData>('/api/mindmap');
+  },
+
+  // —— 知识图（旧接口，保留兼容）——
+  getGraph() {
+    return request<GraphData>('/api/graph');
+  },
+  rebuildGraph() {
+    return request<GraphData>('/api/graph/rebuild', { method: 'POST' });
+  },
+  createGraphNode(data: {
+    title: string;
+    color?: string;
+    x?: number;
+    y?: number;
+    pinned?: boolean;
+  }) {
+    return request<GraphNode>('/api/graph/nodes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  updateGraphNode(
+    id: string,
+    data: Partial<{ title: string; color: string; x: number; y: number; pinned: boolean }>
+  ) {
+    return request<GraphNode>(`/api/graph/nodes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteGraphNode(id: string) {
+    return request<{ ok: boolean }>(`/api/graph/nodes/${id}`, { method: 'DELETE' });
+  },
+  createGraphEdge(data: { fromId: string; toId: string; relation?: string }) {
+    return request<GraphEdge>('/api/graph/edges', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteGraphEdge(id: string) {
+    return request<{ ok: boolean }>(`/api/graph/edges/${id}`, { method: 'DELETE' });
   },
 
   /** 上传笔记图片，返回可写入 Markdown 的 url */

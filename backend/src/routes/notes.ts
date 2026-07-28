@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { nanoid } from 'nanoid';
 import { db, removeNoteFts, syncNoteFts } from '../db.js';
 import { requireAuth, getUser, type AppVariables } from '../auth.js';
+import { removeRefNode, syncStructuralGraph, syncWikiEdgesForNote } from '../graphSync.js';
 
 type NoteRow = {
   id: string;
@@ -55,7 +56,6 @@ function mapNote(row: NoteRow, withContent = true, searchQuery = '') {
     id: row.id,
     notebookId: row.notebook_id,
     title: row.title,
-    isFavorite: !!row.is_favorite,
     deletedAt: row.deleted_at,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
@@ -89,7 +89,6 @@ function mapNote(row: NoteRow, withContent = true, searchQuery = '') {
 noteRoutes.get('/', (c) => {
   const user = getUser(c);
   const notebookId = c.req.query('notebookId');
-  const favorite = c.req.query('favorite');
   const trash = c.req.query('trash');
   const q = (c.req.query('q') || '').trim();
   // 分页：默认 30，最多 100；取 limit+1 判断 hasMore
@@ -109,10 +108,6 @@ noteRoutes.get('/', (c) => {
     sql += ` AND n.deleted_at IS NOT NULL `;
   } else {
     sql += ` AND n.deleted_at IS NULL `;
-  }
-
-  if (favorite === '1') {
-    sql += ` AND n.is_favorite = 1 `;
   }
 
   if (notebookId === 'null' || notebookId === 'uncategorized') {
@@ -213,6 +208,13 @@ noteRoutes.post('/', async (c) => {
   });
   tx();
 
+  try {
+    syncStructuralGraph(user.id);
+    syncWikiEdgesForNote(user.id, id);
+  } catch (e) {
+    console.error('[graph] sync after create note failed', e);
+  }
+
   const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow;
   return c.json(mapNote(row, true), 201);
 });
@@ -245,19 +247,28 @@ noteRoutes.patch('/:id', async (c) => {
       if (!nb) return c.json({ error: '笔记本不存在' }, 400);
     }
   }
-  const isFavorite =
-    body.isFavorite !== undefined ? (body.isFavorite ? 1 : 0) : existing.is_favorite;
+  const contentChanged =
+    body.content !== undefined || body.title !== undefined || body.notebookId !== undefined;
 
   const tx = db.transaction(() => {
     db.prepare(
       `UPDATE notes
        SET title = ?, content = ?, content_html = ?, notebook_id = ?,
-           is_favorite = ?, updated_at = datetime('now')
+           updated_at = datetime('now')
        WHERE id = ? AND user_id = ?`
-    ).run(title, content, contentHtml, notebookId, isFavorite, id, user.id);
+    ).run(title, content, contentHtml, notebookId, id, user.id);
     syncNoteFts(id, title, content);
   });
   tx();
+
+  if (contentChanged) {
+    try {
+      syncStructuralGraph(user.id);
+      syncWikiEdgesForNote(user.id, id);
+    } catch (e) {
+      console.error('[graph] sync after update note failed', e);
+    }
+  }
 
   const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow;
   return c.json(mapNote(row, true));
@@ -276,6 +287,11 @@ noteRoutes.post('/:id/trash', (c) => {
     `UPDATE notes SET deleted_at = datetime('now'), updated_at = datetime('now')
      WHERE id = ? AND user_id = ?`
   ).run(id, user.id);
+  try {
+    removeRefNode(user.id, 'note', id);
+  } catch (e) {
+    console.error('[graph] remove note node on trash failed', e);
+  }
   return c.json({ ok: true });
 });
 
@@ -292,6 +308,12 @@ noteRoutes.post('/:id/restore', (c) => {
     `UPDATE notes SET deleted_at = NULL, updated_at = datetime('now')
      WHERE id = ? AND user_id = ?`
   ).run(id, user.id);
+  try {
+    syncStructuralGraph(user.id);
+    syncWikiEdgesForNote(user.id, id);
+  } catch (e) {
+    console.error('[graph] sync after restore note failed', e);
+  }
   return c.json({ ok: true });
 });
 
@@ -306,6 +328,7 @@ noteRoutes.delete('/:id', (c) => {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM notes WHERE id = ? AND user_id = ?').run(id, user.id);
     removeNoteFts(id);
+    removeRefNode(user.id, 'note', id);
   });
   tx();
   return c.json({ ok: true });
@@ -324,6 +347,7 @@ noteRoutes.delete('/', (c) => {
     for (const r of rows) {
       db.prepare('DELETE FROM notes WHERE id = ?').run(r.id);
       removeNoteFts(r.id);
+      removeRefNode(user.id, 'note', r.id);
     }
   });
   tx();

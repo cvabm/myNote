@@ -375,6 +375,18 @@ html.dark .md-preview hr {
   }
 }
 
+/* 知识地球 / wiki 链预览 */
+.md-preview a[href^="wiki://"] {
+  color: #7c3aed;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(124, 58, 237, 0.45);
+  font-weight: 500;
+}
+html.dark .md-preview a[href^="wiki://"] {
+  color: #c4b5fd;
+  border-bottom-color: rgba(196, 181, 253, 0.45);
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;

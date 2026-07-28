@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import clsx from 'clsx';
-import { Loader2, Menu, Plus, Star, Trash2 } from 'lucide-react';
+import { Loader2, Menu, Plus, Trash2 } from 'lucide-react';
 import type { NoteListItem } from '../types';
 import { formatRelativeTime, highlightText } from '../utils';
 
@@ -139,9 +139,6 @@ export function NoteList({
                   ? highlightText(note.title || '未命名笔记', q)
                   : note.title || '未命名笔记'}
               </span>
-              {note.isFavorite && (
-                <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />
-              )}
             </div>
             {note.preview && (
               <p className="mb-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">

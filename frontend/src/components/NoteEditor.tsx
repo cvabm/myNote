@@ -1,23 +1,19 @@
 import {
   ArrowLeft,
   RotateCcw,
-  Star,
   Trash2,
 } from 'lucide-react';
-import type { Note, Notebook } from '../types';
+import type { Note } from '../types';
 import { formatRelativeTime } from '../utils';
 import { MarkdownEditor, type EditorMode } from './MarkdownEditor';
 
 type NotePatch = {
   title?: string;
   content?: string;
-  notebookId?: string | null;
-  isFavorite?: boolean;
 };
 
 type Props = {
   note: Note;
-  notebooks: Notebook[];
   saving: boolean;
   onChange: (patch: NotePatch) => void;
   onTrash: () => void;
@@ -30,7 +26,6 @@ type Props = {
 
 export function NoteEditor({
   note,
-  notebooks,
   saving,
   onChange,
   onTrash,
@@ -68,26 +63,14 @@ export function NoteEditor({
           {saving ? '保存中' : '已保存'}
         </span>
         {!isTrash && (
-          <>
-            <button
-              type="button"
-              className="btn-ghost shrink-0 !p-2"
-              title={note.isFavorite ? '取消收藏' : '收藏'}
-              onClick={() => onChange({ isFavorite: !note.isFavorite })}
-            >
-              <Star
-                className={`h-4 w-4 ${note.isFavorite ? 'fill-amber-400 text-amber-400' : ''}`}
-              />
-            </button>
-            <button
-              type="button"
-              className="btn-danger shrink-0 !p-2"
-              title="移入回收站"
-              onClick={onTrash}
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </>
+          <button
+            type="button"
+            className="btn-danger shrink-0 !p-2"
+            title="移入回收站"
+            onClick={onTrash}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         )}
         {isTrash && (
           <>
@@ -111,31 +94,13 @@ export function NoteEditor({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm dark:border-slate-800 sm:gap-3 sm:px-4">
-        <label className="flex min-w-0 items-center gap-2 text-slate-500 dark:text-slate-400">
-          <span className="shrink-0 text-xs">笔记本</span>
-          <select
-            className="input w-auto max-w-[40vw] py-1.5 text-xs sm:max-w-none sm:py-1"
-            disabled={readOnly}
-            value={note.notebookId || ''}
-            onChange={(e) =>
-              onChange({ notebookId: e.target.value ? e.target.value : null })
-            }
-          >
-            <option value="">未分类</option>
-            {notebooks.map((nb) => (
-              <option key={nb.id} value={nb.id}>
-                {nb.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {isTrash && (
+      {isTrash && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm dark:border-slate-800 sm:px-4">
           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
             回收站中 · 只读
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-hidden safe-pb">
         <MarkdownEditor

@@ -212,6 +212,42 @@ function sanitizeHtml(html: string) {
     .replace(/javascript:/gi, '');
 }
 
+/**
+ * 将 [[标题]] / [[标题|别名]] 转为可识别的 wiki 链接（预览用）。
+ * 跳过 fenced code / 行内 code 内的匹配由粗略分段完成。
+ */
+function expandWikiLinks(md: string): string {
+  if (!md || !md.includes('[[')) return md;
+  const parts = md.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`)/g);
+  return parts
+    .map((part) => {
+      if (
+        part.startsWith('```') ||
+        part.startsWith('~~~') ||
+        (part.startsWith('`') && part.endsWith('`'))
+      ) {
+        return part;
+      }
+      return part.replace(/\[\[([^\]\n]+)\]\]/g, (_m, inner: string) => {
+        let raw = String(inner || '').trim();
+        if (!raw) return _m;
+        let display = raw;
+        const pipe = raw.indexOf('|');
+        if (pipe >= 0) {
+          display = raw.slice(pipe + 1).trim() || raw.slice(0, pipe).trim();
+          raw = raw.slice(0, pipe).trim();
+        }
+        const hash = raw.indexOf('#');
+        const target = (hash >= 0 ? raw.slice(0, hash) : raw).trim();
+        if (!target) return _m;
+        const label = display || target;
+        // 使用自定义 scheme，预览中可样式化；后续可接跳转
+        return `[${label}](wiki://${encodeURIComponent(target)})`;
+      });
+    })
+    .join('');
+}
+
 export function renderMarkdown(
   md: string,
   opts?: { showImageDelete?: boolean }
@@ -219,7 +255,8 @@ export function renderMarkdown(
   imageDeleteEnabled = !!opts?.showImageDelete;
   headingSlugCounts = new Map();
   try {
-    const raw = marked.parse(md || '', { async: false }) as string;
+    const expanded = expandWikiLinks(md || '');
+    const raw = marked.parse(expanded, { async: false }) as string;
     return sanitizeHtml(raw);
   } catch {
     return `<pre>${escapeHtml(md || '')}</pre>`;

@@ -3,8 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { nanoid } from 'nanoid';
 import { requireAuth, type AppVariables } from '../auth.js';
+import { resolveDataPath } from '../paths.js';
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './data/uploads';
+const UPLOAD_DIR = resolveDataPath(process.env.UPLOAD_DIR || './data/uploads');
 const MAX_BYTES = Number(process.env.UPLOAD_MAX_BYTES || 8 * 1024 * 1024); // 8MB
 
 const ALLOWED: Record<string, string> = {
@@ -14,7 +15,7 @@ const ALLOWED: Record<string, string> = {
   'image/webp': '.webp',
 };
 
-fs.mkdirSync(path.resolve(UPLOAD_DIR), { recursive: true });
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 export const uploadRoutes = new Hono<{ Variables: AppVariables }>();
 uploadRoutes.use('*', requireAuth);
@@ -43,7 +44,7 @@ uploadRoutes.post('/', async (c) => {
   }
 
   const name = `${nanoid(16)}${ext}`;
-  const dest = path.join(path.resolve(UPLOAD_DIR), name);
+  const dest = path.join(UPLOAD_DIR, name);
   fs.writeFileSync(dest, buf);
 
   const url = `/uploads/${name}`;
@@ -61,9 +62,8 @@ uploadRoutes.delete('/:name', (c) => {
     return c.json({ error: '无效文件名' }, 400);
   }
 
-  const dest = path.join(path.resolve(UPLOAD_DIR), name);
-  const root = path.resolve(UPLOAD_DIR);
-  if (!dest.startsWith(root + path.sep) && dest !== root) {
+  const dest = path.join(UPLOAD_DIR, name);
+  if (!dest.startsWith(UPLOAD_DIR + path.sep) && dest !== UPLOAD_DIR) {
     return c.json({ error: '禁止访问' }, 403);
   }
 
