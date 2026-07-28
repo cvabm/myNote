@@ -19,13 +19,10 @@ function safeDecode(v: string | null): string {
 export function readViewRoute(search = window.location.search): ViewRouteState {
   const params = new URLSearchParams(search);
   const note = params.get('note')?.trim() || null;
-  const v = (params.get('v') || 'all').trim();
+  const v = (params.get('v') || 'mindmap').trim();
   const q = safeDecode(params.get('q')).trim();
-  const id = (params.get('id') || '').trim();
 
   switch (v) {
-    case 'favorite':
-      return { filter: { type: 'favorite' }, selectedId: note };
     case 'trash':
       return { filter: { type: 'trash' }, selectedId: note };
     case 'moments':
@@ -33,15 +30,15 @@ export function readViewRoute(search = window.location.search): ViewRouteState {
         filter: q ? { type: 'moments', q } : { type: 'moments' },
         selectedId: null,
       };
-    case 'notebook':
-      if (id) return { filter: { type: 'notebook', id }, selectedId: note };
-      return { filter: { type: 'all' }, selectedId: note };
-    case 'search':
-      if (q) return { filter: { type: 'search', q }, selectedId: note };
-      return { filter: { type: 'all' }, selectedId: note };
+    case 'globe':
+    case 'mindmap':
     case 'all':
+    case 'search':
+    case 'notebook':
+    case 'favorite':
     default:
-      return { filter: { type: 'all' }, selectedId: note };
+      // 默认 / 旧全部笔记、搜索、笔记本等 → 思维导图
+      return { filter: { type: 'mindmap' }, selectedId: note };
   }
 }
 
@@ -54,11 +51,6 @@ export function writeViewRoute(
   const { filter, selectedId } = state;
 
   switch (filter.type) {
-    case 'all':
-      break;
-    case 'favorite':
-      params.set('v', 'favorite');
-      break;
     case 'trash':
       params.set('v', 'trash');
       break;
@@ -66,13 +58,13 @@ export function writeViewRoute(
       params.set('v', 'moments');
       if (filter.q?.trim()) params.set('q', filter.q.trim());
       break;
-    case 'notebook':
-      params.set('v', 'notebook');
-      params.set('id', filter.id);
-      break;
+    case 'globe':
+    case 'mindmap':
+    case 'all':
     case 'search':
-      params.set('v', 'search');
-      params.set('q', filter.q);
+    case 'notebook':
+    default:
+      params.set('v', 'mindmap');
       break;
   }
 
@@ -96,12 +88,6 @@ export function writeViewRoute(
 export function viewRouteEqual(a: ViewRouteState, b: ViewRouteState): boolean {
   if (a.selectedId !== b.selectedId) return false;
   if (a.filter.type !== b.filter.type) return false;
-  if (a.filter.type === 'notebook' && b.filter.type === 'notebook') {
-    return a.filter.id === b.filter.id;
-  }
-  if (a.filter.type === 'search' && b.filter.type === 'search') {
-    return a.filter.q === b.filter.q;
-  }
   if (a.filter.type === 'moments' && b.filter.type === 'moments') {
     return (a.filter.q || '') === (b.filter.q || '');
   }

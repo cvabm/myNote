@@ -26,7 +26,7 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const [flat, setFlat] = useState(false);
+
   const [skipEmpty, setSkipEmpty] = useState(true);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0, current: '' });
@@ -65,7 +65,7 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
         return;
       }
       const result = await importMarkdownFiles(items, {
-        flat,
+        flat: true,
         skipEmpty,
         onProgress: (done, total, current) => setProgress({ done, total, current }),
       });
@@ -148,20 +148,10 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
               导入 Markdown
             </h3>
             <p className="mb-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-              从 Flatnotes 或其它应用导出的 .md 导入。根目录文件进「默认笔记本」；子目录会建成笔记本。也可只选多个文件。
+              从 Flatnotes 或其它应用导出的 .md 导入。文件将作为全局笔记导入（无笔记本）；可在思维导图中浏览。
             </p>
 
             <div className="mb-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-              <label className="flex cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="rounded border-slate-300 dark:border-slate-600"
-                  checked={flat}
-                  disabled={importing}
-                  onChange={(e) => setFlat(e.target.checked)}
-                />
-                全部放进「默认笔记本」（不按文件夹建笔记本）
-              </label>
               <label className="flex cursor-pointer items-center gap-2">
                 <input
                   type="checkbox"

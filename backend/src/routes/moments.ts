@@ -4,10 +4,11 @@ import path from 'node:path';
 import { nanoid } from 'nanoid';
 import { db } from '../db.js';
 import { requireAuth, getUser, type AppVariables } from '../auth.js';
+import { resolveDataPath } from '../paths.js';
 
 const MAX_CONTENT = 2000;
 const MAX_IMAGES = 9;
-const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || './data/uploads');
+const UPLOAD_DIR = resolveDataPath(process.env.UPLOAD_DIR || './data/uploads');
 
 type MomentRow = {
   id: string;

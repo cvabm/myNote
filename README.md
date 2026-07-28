@@ -2,7 +2,7 @@
 
 自托管私有笔记 / 知识库，可部署在你自己的服务器上。
 
-设计思路参考 [nowen-note](https://github.com/cropflre/nowen-note)：三栏布局、多级笔记本、Markdown、收藏、回收站、全文搜索、Docker 一键部署。
+设计思路参考 [nowen-note](https://github.com/cropflre/nowen-note)：三栏布局、多级笔记本、Markdown、回收站、全文搜索、Docker 一键部署。
 
 ## 功能
 
@@ -10,11 +10,11 @@
 | --- | --- |
 | 用户登录 | JWT 鉴权，可修改密码 |
 | 暗色主题 | 浅色 / 深色 / 跟随系统 |
-| 多级笔记本 | 无限层级树形组织 |
+| 思维导图 | 主入口：结构浏览、搜索、预览与编辑笔记 |
 | Markdown 编辑 | 预览 / 编辑 / 分栏，自动保存 |
 | 图片 | 工具栏上传、粘贴、拖拽；预览可删除（正文+文件）；存于 `data/uploads` |
-| 收藏 | 快速收藏重要笔记 |
 | 说说 | 类似 QQ 空间 / 推特的短动态：文字 + 最多 9 图、编辑删除、正文搜索 |
+| 思维导图 | 按笔记本层级展开的思维导图；点击折叠/展开，点笔记打开编辑 |
 | 回收站 | 软删除、恢复、永久删除、清空 |
 | 全文搜索 | 即时搜索、关键字高亮（SQLite FTS5） |
 | Docker 部署 | 数据卷持久化 |
@@ -61,7 +61,7 @@ npm run dev:frontend
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `PORT` | `3001` | 服务端口 |
-| `DB_PATH` | `./data/mynote.db` | SQLite 路径 |
+| `DB_PATH` | `./data/mynote.db` | SQLite 路径（相对路径相对**仓库根目录**，不是 `backend/` 工作目录） |
 | `JWT_SECRET` | 内置开发密钥 | **生产务必修改** |
 | `ADMIN_USER` | `admin` | 首次初始化管理员用户名 |
 | `ADMIN_PASS` | `admin123` | 首次初始化管理员密码 |
@@ -98,6 +98,9 @@ myNote/
 | CRUD | `/api/notebooks` | 笔记本 |
 | CRUD | `/api/notes` | 笔记（含 trash/restore；列表支持 `limit`/`offset` 分页） |
 | CRUD | `/api/moments` | 说说（短动态；列表支持 `limit`/`before` 游标分页） |
+| GET/POST | `/api/graph` | 知识图全量数据 / 强制重建 |
+| CRUD | `/api/graph/nodes` | 图节点（游离概念创建/改/删；位置固定） |
+| CRUD | `/api/graph/edges` | 手动连线（wiki/系统边由同步生成） |
 | POST | `/api/uploads` | 上传图片（需登录） |
 | GET | `/uploads/*` | 访问已上传图片 |
 | GET | `/api/health` | 健康检查 |
@@ -111,7 +114,13 @@ myNote/
 
 ## 与 nowen-note 的差异
 
-本项目定位为**轻量可维护的核心笔记服务**，便于二次开发和长期自托管。未包含：AI 助手、思维导图、任务中心、Yjs 实时协作、Electron/移动端、对象存储等。若需要完整生态，可直接使用 [nowen-note](https://github.com/cropflre/nowen-note)。
+本项目定位为**轻量可维护的核心笔记服务**，便于二次开发和长期自托管。已包含知识地球（图视图 + wiki 链）。未包含：AI 助手、任务中心、Yjs 实时协作、Electron/移动端、对象存储等。若需要完整生态，可直接使用 [nowen-note](https://github.com/cropflre/nowen-note)。
+
+### 思维导图
+
+1. 侧栏进入 **思维导图**（默认首页）。  
+2. 点击分类展开/折叠；点击笔记预览；右键/长按可新建、重命名、删除。  
+3. 顶栏搜索支持标题与正文（Ctrl+F 聚焦搜索框）。
 
 ## License
 

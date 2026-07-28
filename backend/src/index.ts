@@ -7,15 +7,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { initDb } from './db.js';
+import { resolveDataPath } from './paths.js';
 import { authRoutes } from './routes/auth.js';
 import { momentRoutes } from './routes/moments.js';
 import { notebookRoutes } from './routes/notebooks.js';
 import { noteRoutes } from './routes/notes.js';
+import { graphRoutes } from './routes/graph.js';
+import { mindmapRoutes } from './routes/mindmap.js';
 import { uploadRoutes } from './routes/uploads.js';
 
 const PORT = Number(process.env.PORT || 3001);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || './data/uploads');
+const UPLOAD_DIR = resolveDataPath(process.env.UPLOAD_DIR || './data/uploads');
 
 initDb();
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -38,6 +41,8 @@ app.route('/api/auth', authRoutes);
 app.route('/api/notebooks', notebookRoutes);
 app.route('/api/notes', noteRoutes);
 app.route('/api/moments', momentRoutes);
+app.route('/api/graph', graphRoutes);
+app.route('/api/mindmap', mindmapRoutes);
 app.route('/api/uploads', uploadRoutes);
 
 // 笔记图片（文件名随机，GET 无需登录以便 Markdown 预览）
