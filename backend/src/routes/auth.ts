@@ -80,19 +80,9 @@ function mapSession(row: SessionRow, currentSessionId: string | null) {
   const m = parseMeta(row);
   const str = (k: string) => (typeof m[k] === 'string' ? (m[k] as string) : '');
   const num = (k: string) => (typeof m[k] === 'number' ? (m[k] as number) : null);
-  const city = str('city');
-  const region = str('region');
-  const country = str('country');
-  const location = [city, region, country].filter(Boolean).join(' · ');
   return {
     id: row.id,
     deviceLabel: row.device_label || '未知设备',
-    ip: row.ip || '',
-    location: location || '',
-    city,
-    region,
-    country,
-    isp: str('isp'),
     userAgent: row.user_agent || '',
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
@@ -148,17 +138,10 @@ authRoutes.post('/login', async (c) => {
 
   clearLoginFailures(key);
 
-  const ip = clientIp(c);
   const session = createSession(user.id, {
     userAgent: c.req.header('user-agent') || '',
-    ip,
     client: body.device,
   });
-
-  // 便于排查公网反代是否带了真实 IP
-  console.log(
-    `[auth] login user=${user.username} ip=${ip} xff=${c.req.header('x-forwarded-for') || '-'} xri=${c.req.header('x-real-ip') || '-'}`
-  );
 
   const token = await signToken({
     id: user.id,
@@ -252,7 +235,6 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
     if (!sessionId) {
       sessionId = createSession(auth.id, {
         userAgent: c.req.header('user-agent') || '',
-        ip: clientIp(c),
         client: body.device,
       }).id;
     }
@@ -282,7 +264,6 @@ authRoutes.post('/logout-all', requireAuth, async (c) => {
       if (!sessionId) {
         sessionId = createSession(auth.id, {
           userAgent: c.req.header('user-agent') || '',
-          ip: clientIp(c),
           client: body.device,
         }).id;
       }

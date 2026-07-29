@@ -5,17 +5,10 @@ export type User = {
   sessionId?: string | null;
 };
 
-/** 登录设备 / 会话 */
+/** 登录设备 / 会话（不含 IP） */
 export type LoginSession = {
   id: string;
   deviceLabel: string;
-  ip: string;
-  /** 城市 · 地区 · 国家 */
-  location?: string;
-  city?: string;
-  region?: string;
-  country?: string;
-  isp?: string;
   userAgent: string;
   createdAt: string;
   lastSeenAt: string;

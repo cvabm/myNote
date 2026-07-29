@@ -47,9 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(async (username: string, password: string) => {
-    // 含公网 IP/城市（浏览器访问 ip 查询服务，原理同 curl ip.im）
-    const device = await collectDeviceInfo();
-    const res = await api.login(username, password, device);
+    const res = await api.login(username, password, collectDeviceInfo());
     setToken(res.token);
     setUser(res.user);
   }, []);
