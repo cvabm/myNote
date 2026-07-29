@@ -10,10 +10,31 @@ export type LoginSession = {
   id: string;
   deviceLabel: string;
   ip: string;
+  /** 城市 · 地区 · 国家 */
+  location?: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  isp?: string;
   userAgent: string;
   createdAt: string;
   lastSeenAt: string;
   current: boolean;
+  browser?: string;
+  browserVersion?: string;
+  os?: string;
+  osVersion?: string;
+  deviceType?: string;
+  engine?: string;
+  platform?: string;
+  language?: string;
+  timezone?: string;
+  screen?: string;
+  colorDepth?: number | null;
+  devicePixelRatio?: number | null;
+  maxTouchPoints?: number | null;
+  hardwareConcurrency?: number | null;
+  deviceMemory?: number | null;
 };
 
 export type Notebook = {

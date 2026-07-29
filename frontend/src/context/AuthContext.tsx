@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { api, getToken, setToken } from '../api';
+import { collectDeviceInfo } from '../lib/deviceInfo';
 import type { User } from '../types';
 
 type AuthContextValue = {
@@ -46,7 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(async (username: string, password: string) => {
-    const res = await api.login(username, password);
+    // 含公网 IP/城市（浏览器访问 ip 查询服务，原理同 curl ip.im）
+    const device = await collectDeviceInfo();
+    const res = await api.login(username, password, device);
     setToken(res.token);
     setUser(res.user);
   }, []);

@@ -35,6 +35,7 @@ export function initDb() {
       device_label TEXT NOT NULL DEFAULT '',
       user_agent TEXT NOT NULL DEFAULT '',
       ip TEXT NOT NULL DEFAULT '',
+      meta_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
       revoked_at TEXT,
@@ -161,6 +162,12 @@ export function initDb() {
   if (!userCols.some((c) => c.name === 'token_version')) {
     db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0');
     console.log('[db] users.token_version 已添加');
+  }
+
+  const sessionCols = db.prepare('PRAGMA table_info(user_sessions)').all() as { name: string }[];
+  if (sessionCols.length && !sessionCols.some((c) => c.name === 'meta_json')) {
+    db.exec(`ALTER TABLE user_sessions ADD COLUMN meta_json TEXT NOT NULL DEFAULT '{}'`);
+    console.log('[db] user_sessions.meta_json 已添加');
   }
 
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(ADMIN_USER) as

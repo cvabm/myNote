@@ -40,10 +40,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  login(username: string, password: string) {
+  login(username: string, password: string, device?: Record<string, unknown>) {
     return request<{ token: string; user: User }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, device }),
     });
   },
   me() {

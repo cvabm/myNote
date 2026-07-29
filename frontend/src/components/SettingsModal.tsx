@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes }
 import {
   FileUp,
   FolderOpen,
+  Laptop,
   Loader2,
   LogOut,
   Monitor,
@@ -9,6 +10,7 @@ import {
   RefreshCw,
   Smartphone,
   Sun,
+  Tablet,
   Trash2,
   X,
 } from 'lucide-react';
@@ -405,7 +407,7 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
               列表在重新登录后才会出现；旧 token 需重新登录一次。
             </p>
 
-            <div className="mb-3 max-h-52 space-y-2 overflow-y-auto">
+            <div className="mb-3 max-h-72 space-y-2 overflow-y-auto">
               {sessionsLoading && sessions.length === 0 ? (
                 <div className="flex items-center gap-2 py-4 text-xs text-slate-400">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -416,50 +418,116 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
                   暂无会话记录。请退出后重新登录一次，即可在此看到本机。
                 </div>
               ) : (
-                sessions.map((s) => (
-                  <div
-                    key={s.id}
-                    className={clsx(
-                      'flex items-start gap-2 rounded-xl border px-3 py-2.5',
-                      s.current
-                        ? 'border-indigo-200 bg-indigo-50/80 dark:border-indigo-500/30 dark:bg-indigo-500/10'
-                        : 'border-slate-200 dark:border-slate-700'
-                    )}
-                  >
-                    <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-slate-800 dark:text-slate-100">
-                        <span className="truncate">{s.deviceLabel}</span>
-                        {s.current && (
-                          <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
-                            本机
-                          </span>
+                sessions.map((s) => {
+                  const DeviceIcon =
+                    s.deviceType === 'mobile'
+                      ? Smartphone
+                      : s.deviceType === 'tablet'
+                        ? Tablet
+                        : Laptop;
+                  const detailBits = [
+                    s.browser &&
+                      (s.browserVersion
+                        ? `${s.browser} ${s.browserVersion.split('.').slice(0, 2).join('.')}`
+                        : s.browser),
+                    s.os && (s.osVersion ? `${s.os} ${s.osVersion}` : s.os),
+                    s.engine && `引擎 ${s.engine}`,
+                    s.platform && `平台 ${s.platform}`,
+                    s.screen && `屏幕 ${s.screen}`,
+                    s.devicePixelRatio != null && s.devicePixelRatio > 0
+                      ? `DPR ${s.devicePixelRatio}`
+                      : null,
+                    s.language && `语言 ${s.language}`,
+                    s.timezone && s.timezone,
+                    s.hardwareConcurrency != null
+                      ? `${s.hardwareConcurrency} 核`
+                      : null,
+                    s.deviceMemory != null ? `${s.deviceMemory} GB 内存` : null,
+                    s.maxTouchPoints != null && s.maxTouchPoints > 0
+                      ? `触点 ${s.maxTouchPoints}`
+                      : null,
+                  ].filter(Boolean) as string[];
+
+                  return (
+                    <div
+                      key={s.id}
+                      className={clsx(
+                        'flex items-start gap-2 rounded-xl border px-3 py-2.5',
+                        s.current
+                          ? 'border-indigo-200 bg-indigo-50/80 dark:border-indigo-500/30 dark:bg-indigo-500/10'
+                          : 'border-slate-200 dark:border-slate-700'
+                      )}
+                    >
+                      <DeviceIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-slate-800 dark:text-slate-100">
+                          <span className="truncate">{s.deviceLabel}</span>
+                          {s.current && (
+                            <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+                              本机
+                            </span>
+                          )}
+                          {s.deviceType && s.deviceType !== 'unknown' && (
+                            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                              {s.deviceType === 'mobile'
+                                ? '手机'
+                                : s.deviceType === 'tablet'
+                                  ? '平板'
+                                  : '电脑'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                          IP{' '}
+                          {!s.ip || s.ip === 'unknown' ? (
+                            <span className="text-amber-600 dark:text-amber-400">未获取</span>
+                          ) : (
+                            <span className="font-medium text-slate-700 dark:text-slate-200">
+                              {s.ip}
+                            </span>
+                          )}
+                          {s.location ? (
+                            <>
+                              {' · '}
+                              <span>{s.location}</span>
+                            </>
+                          ) : null}
+                          {s.isp ? <> · {s.isp}</> : null}
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                          最近活跃 {formatTime(s.lastSeenAt)}
+                          {' · '}
+                          登录 {formatTime(s.createdAt)}
+                        </div>
+                        {detailBits.length > 0 && (
+                          <div className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            {detailBits.join(' · ')}
+                          </div>
+                        )}
+                        {s.userAgent && (
+                          <p className="mt-1 break-all text-[10px] leading-snug text-slate-400">
+                            {s.userAgent}
+                          </p>
                         )}
                       </div>
-                      <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                        {s.ip ? `${s.ip} · ` : ''}
-                        最近活跃 {formatTime(s.lastSeenAt)}
-                        {' · '}
-                        登录于 {formatTime(s.createdAt)}
-                      </div>
+                      {!s.current && (
+                        <button
+                          type="button"
+                          className="btn-ghost shrink-0 !p-1.5 text-red-500"
+                          title="踢下线"
+                          disabled={revokingId === s.id || logoutLoading || importing}
+                          onClick={() => void onRevokeSession(s)}
+                        >
+                          {revokingId === s.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
                     </div>
-                    {!s.current && (
-                      <button
-                        type="button"
-                        className="btn-ghost shrink-0 !p-1.5 text-red-500"
-                        title="踢下线"
-                        disabled={revokingId === s.id || logoutLoading || importing}
-                        onClick={() => void onRevokeSession(s)}
-                      >
-                        {revokingId === s.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
