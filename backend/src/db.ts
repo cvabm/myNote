@@ -28,6 +28,23 @@ export function initDb() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- 登录设备 / 会话（JWT 内带 session id）
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      device_label TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT '',
+      ip TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+      revoked_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_active
+      ON user_sessions(user_id, revoked_at);
+
     CREATE TABLE IF NOT EXISTS notebooks (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,

@@ -2,6 +2,7 @@ import type {
   GraphData,
   GraphEdge,
   GraphNode,
+  LoginSession,
   MindmapData,
   Moment,
   Note,
@@ -60,6 +61,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ keepCurrent }),
     });
+  },
+  listSessions() {
+    return request<{ items: LoginSession[] }>('/api/auth/sessions');
+  },
+  revokeSession(id: string) {
+    return request<{ ok: boolean }>(`/api/auth/sessions/${id}`, { method: 'DELETE' });
   },
 
   listNotebooks() {
