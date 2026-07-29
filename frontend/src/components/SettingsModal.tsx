@@ -478,23 +478,6 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
                           )}
                         </div>
                         <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                          IP{' '}
-                          {!s.ip || s.ip === 'unknown' ? (
-                            <span className="text-amber-600 dark:text-amber-400">未获取</span>
-                          ) : (
-                            <span className="font-medium text-slate-700 dark:text-slate-200">
-                              {s.ip}
-                            </span>
-                          )}
-                          {s.location ? (
-                            <>
-                              {' · '}
-                              <span>{s.location}</span>
-                            </>
-                          ) : null}
-                          {s.isp ? <> · {s.isp}</> : null}
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                           最近活跃 {formatTime(s.lastSeenAt)}
                           {' · '}
                           登录 {formatTime(s.createdAt)}
