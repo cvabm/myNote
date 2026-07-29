@@ -24,6 +24,7 @@ export function initDb() {
       username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       display_name TEXT NOT NULL DEFAULT '',
+      token_version INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -137,6 +138,13 @@ export function initDb() {
     DROP TABLE IF EXISTS note_tags;
     DROP TABLE IF EXISTS tags;
   `);
+
+  // 兼容旧库：补 token_version（改密 / 退出全部登录时递增，使旧 JWT 失效）
+  const userCols = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+  if (!userCols.some((c) => c.name === 'token_version')) {
+    db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0');
+    console.log('[db] users.token_version 已添加');
+  }
 
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(ADMIN_USER) as
     | { id: string }
