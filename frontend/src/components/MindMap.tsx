@@ -19,8 +19,9 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { api } from '../api';
-import { renderMarkdown } from '../lib/markdown';
+import { highlightHtmlKeywords, renderMarkdown } from '../lib/markdown';
 import type { MindNode, Note } from '../types';
+import { highlightText } from '../utils';
 
 type Props = {
   onOpenSidebar?: () => void;
@@ -429,6 +430,8 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
   const [preview, setPreview] = useState<Note | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  /** 预览正文高亮用的关键字（来自当前搜索） */
+  const [previewHighlightQ, setPreviewHighlightQ] = useState('');
   const previewSeq = useRef(0);
   const dragRef = useRef<{
     lastX: number;
@@ -470,43 +473,48 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
     setCtxMenu({ x, y, node });
   }, []);
 
-  const openPreview = useCallback(async (noteId: string, titleHint?: string) => {
-    const seq = ++previewSeq.current;
-    setPreviewLoading(true);
-    setPreviewError(null);
-    setPreview((prev) =>
-      prev?.id === noteId
-        ? prev
-        : ({
-            id: noteId,
-            title: titleHint || '加载中…',
-            content: '',
-            contentHtml: '',
-            notebookId: null,
-            deletedAt: null,
-            sortOrder: 0,
-            createdAt: '',
-            updatedAt: '',
-          } as Note)
-    );
-    try {
-      const note = await api.getNote(noteId);
-      if (seq !== previewSeq.current) return;
-      setPreview(note);
-      setStatus(note.title);
-    } catch (e) {
-      if (seq !== previewSeq.current) return;
-      setPreviewError(e instanceof Error ? e.message : '加载失败');
-    } finally {
-      if (seq === previewSeq.current) setPreviewLoading(false);
-    }
-  }, []);
+  const openPreview = useCallback(
+    async (noteId: string, titleHint?: string, highlightQ?: string) => {
+      const seq = ++previewSeq.current;
+      setPreviewLoading(true);
+      setPreviewError(null);
+      setPreviewHighlightQ((highlightQ ?? '').trim());
+      setPreview((prev) =>
+        prev?.id === noteId
+          ? prev
+          : ({
+              id: noteId,
+              title: titleHint || '加载中…',
+              content: '',
+              contentHtml: '',
+              notebookId: null,
+              deletedAt: null,
+              sortOrder: 0,
+              createdAt: '',
+              updatedAt: '',
+            } as Note)
+      );
+      try {
+        const note = await api.getNote(noteId);
+        if (seq !== previewSeq.current) return;
+        setPreview(note);
+        setStatus(note.title);
+      } catch (e) {
+        if (seq !== previewSeq.current) return;
+        setPreviewError(e instanceof Error ? e.message : '加载失败');
+      } finally {
+        if (seq === previewSeq.current) setPreviewLoading(false);
+      }
+    },
+    []
+  );
 
   const closePreview = useCallback(() => {
     previewSeq.current += 1;
     setPreview(null);
     setPreviewError(null);
     setPreviewLoading(false);
+    setPreviewHighlightQ('');
   }, []);
 
   useEffect(() => {
@@ -539,8 +547,11 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
 
   const previewHtml = useMemo(() => {
     if (!preview?.content) return '';
-    return renderMarkdown(preview.content);
-  }, [preview?.content]);
+    const html = renderMarkdown(preview.content);
+    return previewHighlightQ
+      ? highlightHtmlKeywords(html, previewHighlightQ)
+      : html;
+  }, [preview?.content, previewHighlightQ]);
 
   const load = useCallback(async (opts?: { keepView?: boolean }) => {
     setLoading(true);
@@ -874,15 +885,15 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           centerOnNode(nodeId);
-          // 笔记：定位后打开内容浮层，方便看全文命中
+          // 笔记：定位后打开内容浮层，并高亮当前搜索关键字
           if (item?.type === 'note') {
             const refId = nodeId.startsWith('note:') ? nodeId.slice(5) : item.id;
-            void openPreview(refId, item.title);
+            void openPreview(refId, item.title, searchQ);
           }
         });
       });
     },
-    [root, searchResults, centerOnNode, openPreview]
+    [root, searchResults, centerOnNode, openPreview, searchQ]
   );
 
   const clearSearch = useCallback(() => {
@@ -1645,12 +1656,16 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
                       >
                         {hit.type === 'note' ? '笔记' : '分类'}
                       </span>
-                      <span className="min-w-0 truncate font-medium">{hit.title}</span>
+                      <span className="min-w-0 truncate font-medium">
+                        {highlightText(hit.title, searchQ)}
+                      </span>
                     </span>
-                    <span className="truncate pl-0.5 text-[11px] text-slate-400">{hit.path}</span>
+                    <span className="truncate pl-0.5 text-[11px] text-slate-400">
+                      {highlightText(hit.path, searchQ)}
+                    </span>
                     {hit.snippet && (
                       <span className="line-clamp-2 pl-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                        {hit.snippet}
+                        {highlightText(hit.snippet, searchQ)}
                       </span>
                     )}
                   </button>
@@ -1864,10 +1879,16 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
                     id="mindmap-preview-title"
                     className="truncate text-base font-semibold text-slate-800 dark:text-slate-100"
                   >
-                    {preview.title || '未命名'}
+                    {previewHighlightQ
+                      ? highlightText(preview.title || '未命名', previewHighlightQ)
+                      : preview.title || '未命名'}
                   </h2>
                   <p className="mt-0.5 text-[11px] text-slate-400">
-                    {previewLoading ? '加载中…' : '思维导图预览 · 点击遮罩关闭'}
+                    {previewLoading
+                      ? '加载中…'
+                      : previewHighlightQ
+                        ? `预览 · 已高亮「${previewHighlightQ}」· 点击遮罩关闭`
+                        : '思维导图预览 · 点击遮罩关闭'}
                   </p>
                 </div>
                 <button

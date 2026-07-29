@@ -367,34 +367,59 @@ export default function App() {
               </div>
             )}
           </>
-        ) : selectedId && current ? (
-          <NoteEditor
-            note={current}
-            saving={saving}
-            onChange={handleNoteChange}
-            onTrash={handleTrash}
-            onRestore={handleRestore}
-            onDeleteForever={handleDeleteForever}
-            onClose={() => {
-              setOpenInEditMode(false);
-              setSelectedId(null);
-              if (filter.type !== 'mindmap') setFilter({ type: 'mindmap' });
-            }}
-            initialEditorMode={openInEditMode ? 'split' : 'preview'}
-          />
-        ) : selectedId ? (
-          <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400 dark:bg-slate-950">
-            加载笔记…
-          </div>
         ) : (
-          <MindMap
-            onOpenSidebar={() => setSidebarOpen(true)}
-            onOpenNote={(noteId) => {
-              setOpenInEditMode(true);
-              setSelectedId(noteId);
-              setSidebarOpen(false);
-            }}
-          />
+          // 导图始终挂载，进编辑只隐藏，返回时保留展开/缩放/定位
+          <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
+            <div
+              className={
+                selectedId
+                  ? 'pointer-events-none invisible absolute inset-0'
+                  : 'flex h-full min-h-0 min-w-0 flex-1'
+              }
+              aria-hidden={!!selectedId}
+            >
+              <MindMap
+                onOpenSidebar={() => setSidebarOpen(true)}
+                onOpenNote={(noteId) => {
+                  setOpenInEditMode(true);
+                  setSelectedId(noteId);
+                  setSidebarOpen(false);
+                }}
+              />
+            </div>
+            {selectedId && current ? (
+              <NoteEditor
+                note={current}
+                saving={saving}
+                onChange={handleNoteChange}
+                onTrash={handleTrash}
+                onRestore={handleRestore}
+                onDeleteForever={handleDeleteForever}
+                onClose={() => {
+                  setOpenInEditMode(false);
+                  setSelectedId(null);
+                  setCurrent(null);
+                  setFilter({ type: 'mindmap' });
+                }}
+                initialEditorMode={openInEditMode ? 'split' : 'preview'}
+              />
+            ) : selectedId ? (
+              <div className="relative z-10 flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-white text-sm text-slate-400 dark:bg-slate-950">
+                <span>加载笔记…</span>
+                <button
+                  type="button"
+                  className="btn-ghost text-sm"
+                  onClick={() => {
+                    setSelectedId(null);
+                    setCurrent(null);
+                    setFilter({ type: 'mindmap' });
+                  }}
+                >
+                  返回思维导图
+                </button>
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
 
