@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import bcrypt from 'bcryptjs';
 import { db } from '../db.js';
 import {
@@ -30,7 +30,7 @@ const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
 
-function clientKey(c: { req: { header: (n: string) => string | undefined } }, username: string) {
+function clientKey(c: Context, username: string) {
   return `${clientIp(c)}|${username.toLowerCase()}`;
 }
 
@@ -68,15 +68,50 @@ setInterval(() => {
   }
 }, 60_000).unref?.();
 
+function parseMeta(row: SessionRow) {
+  try {
+    return JSON.parse(row.meta_json || '{}') as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 function mapSession(row: SessionRow, currentSessionId: string | null) {
+  const m = parseMeta(row);
+  const str = (k: string) => (typeof m[k] === 'string' ? (m[k] as string) : '');
+  const num = (k: string) => (typeof m[k] === 'number' ? (m[k] as number) : null);
+  const city = str('city');
+  const region = str('region');
+  const country = str('country');
+  const location = [city, region, country].filter(Boolean).join(' · ');
   return {
     id: row.id,
     deviceLabel: row.device_label || '未知设备',
     ip: row.ip || '',
+    location: location || '',
+    city,
+    region,
+    country,
+    isp: str('isp'),
     userAgent: row.user_agent || '',
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
     current: !!currentSessionId && row.id === currentSessionId,
+    browser: str('browser'),
+    browserVersion: str('browserVersion'),
+    os: str('os'),
+    osVersion: str('osVersion'),
+    deviceType: str('deviceType') || 'unknown',
+    engine: str('engine'),
+    platform: str('platform'),
+    language: str('language'),
+    timezone: str('timezone'),
+    screen: str('screen'),
+    colorDepth: num('colorDepth'),
+    devicePixelRatio: num('devicePixelRatio'),
+    maxTouchPoints: num('maxTouchPoints'),
+    hardwareConcurrency: num('hardwareConcurrency'),
+    deviceMemory: num('deviceMemory'),
   };
 }
 
@@ -113,10 +148,17 @@ authRoutes.post('/login', async (c) => {
 
   clearLoginFailures(key);
 
+  const ip = clientIp(c);
   const session = createSession(user.id, {
     userAgent: c.req.header('user-agent') || '',
-    ip: clientIp(c),
+    ip,
+    client: body.device,
   });
+
+  // 便于排查公网反代是否带了真实 IP
+  console.log(
+    `[auth] login user=${user.username} ip=${ip} xff=${c.req.header('x-forwarded-for') || '-'} xri=${c.req.header('x-real-ip') || '-'}`
+  );
 
   const token = await signToken({
     id: user.id,
@@ -211,6 +253,7 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
       sessionId = createSession(auth.id, {
         userAgent: c.req.header('user-agent') || '',
         ip: clientIp(c),
+        client: body.device,
       }).id;
     }
     return { tokenVersion, sessionId };
@@ -240,6 +283,7 @@ authRoutes.post('/logout-all', requireAuth, async (c) => {
         sessionId = createSession(auth.id, {
           userAgent: c.req.header('user-agent') || '',
           ip: clientIp(c),
+          client: body.device,
         }).id;
       }
       return { tokenVersion, sessionId, keep: true as const };
