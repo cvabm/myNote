@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { nanoid } from 'nanoid';
 import { db } from '../db.js';
 import { requireAuth, getUser, type AppVariables } from '../auth.js';
+import { syncStructuralGraph } from '../graphSync.js';
 
 type NotebookRow = {
   id: string;
@@ -95,7 +96,8 @@ notebookRoutes.patch('/:id', async (c) => {
   const color = body.color !== undefined ? String(body.color) : existing.color;
   const icon = body.icon !== undefined ? String(body.icon) : existing.icon;
   let parentId = existing.parent_id;
-  if (body.parentId !== undefined) {
+  const parentChanged = body.parentId !== undefined;
+  if (parentChanged) {
     parentId = body.parentId ? String(body.parentId) : null;
     if (parentId === id) return c.json({ error: '不能将笔记本设为自己的子节点' }, 400);
     if (parentId) {
@@ -103,6 +105,24 @@ notebookRoutes.patch('/:id', async (c) => {
         .prepare('SELECT id FROM notebooks WHERE id = ? AND user_id = ?')
         .get(parentId, user.id);
       if (!parent) return c.json({ error: '父笔记本不存在' }, 400);
+      // 禁止移到自己的子孙下，避免环
+      const isDescendant = (ancestorId: string, candidateId: string): boolean => {
+        let cur: string | null = candidateId;
+        const seen = new Set<string>();
+        while (cur) {
+          if (cur === ancestorId) return true;
+          if (seen.has(cur)) break;
+          seen.add(cur);
+          const row = db
+            .prepare('SELECT parent_id FROM notebooks WHERE id = ? AND user_id = ?')
+            .get(cur, user.id) as { parent_id: string | null } | undefined;
+          cur = row?.parent_id ?? null;
+        }
+        return false;
+      };
+      if (isDescendant(id, parentId)) {
+        return c.json({ error: '不能将笔记本移动到自己的子树下' }, 400);
+      }
     }
   }
   const sortOrder =
@@ -114,6 +134,14 @@ notebookRoutes.patch('/:id', async (c) => {
          updated_at = datetime('now')
      WHERE id = ? AND user_id = ?`
   ).run(name, color, icon, parentId, sortOrder, id, user.id);
+
+  if (parentChanged) {
+    try {
+      syncStructuralGraph(user.id);
+    } catch (e) {
+      console.error('[graph] sync after move notebook failed', e);
+    }
+  }
 
   const row = db.prepare('SELECT * FROM notebooks WHERE id = ?').get(id) as NotebookRow;
   return c.json(mapNotebook(row));

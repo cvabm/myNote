@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import {
   ChevronsDownUp,
   ChevronsUpDown,
+  CornerUpLeft,
   ExternalLink,
   FilePlus,
   Focus,
@@ -35,6 +36,16 @@ type CtxMenu = {
   node: MindNode;
 };
 
+/** 修改父节点：可选目标（根或分类） */
+type ParentOption = {
+  /** null = 挂到导图根下（笔记无笔记本 / 分类顶级） */
+  parentRefId: string | null;
+  /** mind 节点 id，用于展开 */
+  mindId: string;
+  label: string;
+  depth: number;
+};
+
 type Cam = { x: number; y: number; k: number };
 type Laid = {
   id: string;
@@ -51,7 +62,11 @@ type Laid = {
 
 const MIN_K = 0.28;
 const MAX_K = 2.4;
-/** 默认缩放略小，四周留白 */
+/** 点击节点聚焦时最低可读缩放，避免为塞进全图而缩得看不清 */
+const MIN_READABLE_K = 0.78;
+/** 聚焦局部时的缩放上限 */
+const FOCUS_MAX_K = 1.2;
+/** 默认缩放略小，四周留白（仅「适应全图」用） */
 const FIT_SCALE = 0.62;
 
 const NODE_H_ROOT = 36;
@@ -451,7 +466,8 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
   const sizeRef = useRef({ w: 1, h: 1, dpr: 1 });
   const laidRef = useRef<Laid[]>([]);
   const rafRef = useRef(0);
-  const needFitRef = useRef(false);
+  /** 布局完成后：fit=适应全图；focus=只对准某节点及其可见子树（保持可读） */
+  const viewIntentRef = useRef<'fit' | { focus: string } | null>(null);
 
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
 
@@ -564,9 +580,9 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
         setCollapsed(overviewCollapse(data.root));
         setSelectedId(data.root.id);
         setStatus('右键节点可编辑 · 点笔记预览');
-        needFitRef.current = true;
+        viewIntentRef.current = 'fit';
       } else {
-        // 清理已不存在的折叠 id
+        // 清理已不存在的折叠 id；保留当前相机，不强制全图适应
         setCollapsed((prev) => {
           const alive = new Set<string>();
           const walk = (n: MindNode) => {
@@ -578,7 +594,7 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
           for (const id of prev) if (alive.has(id)) next.add(id);
           return next;
         });
-        needFitRef.current = true;
+        viewIntentRef.current = null;
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
@@ -737,11 +753,170 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
     [closeCtx, closePreview, load]
   );
 
+  /** 修改父节点面板 */
+  const [moveNodeTarget, setMoveNodeTarget] = useState<MindNode | null>(null);
+  const [moveFilter, setMoveFilter] = useState('');
+  const [moving, setMoving] = useState(false);
+
+  const openMoveParent = useCallback(
+    (node: MindNode) => {
+      closeCtx();
+      if (node.type === 'root' || !node.refId) return;
+      setMoveFilter('');
+      setMoveNodeTarget(node);
+    },
+    [closeCtx]
+  );
+
+  const closeMoveParent = useCallback(() => {
+    if (moving) return;
+    setMoveNodeTarget(null);
+    setMoveFilter('');
+  }, [moving]);
+
+  /** 收集可作为父节点的选项；分类移动时排除自身及子树 */
+  const parentOptions = useMemo((): ParentOption[] => {
+    if (!root || !moveNodeTarget) return [];
+    const forbid = new Set<string>();
+    if (moveNodeTarget.type === 'notebook') {
+      const mark = (n: MindNode) => {
+        forbid.add(n.id);
+        n.children.forEach(mark);
+      };
+      mark(moveNodeTarget);
+    }
+
+    const out: ParentOption[] = [
+      {
+        parentRefId: null,
+        mindId: 'root',
+        label: '（根节点 / 无上级分类）',
+        depth: 0,
+      },
+    ];
+
+    const walk = (n: MindNode, path: string[], depth: number) => {
+      if (n.type === 'notebook' && n.refId) {
+        if (!forbid.has(n.id)) {
+          out.push({
+            parentRefId: n.refId,
+            mindId: n.id,
+            label: [...path, n.title].join(' / '),
+            depth,
+          });
+        }
+        for (const c of n.children) {
+          if (c.type === 'notebook') walk(c, [...path, n.title], depth + 1);
+        }
+      } else if (n.type === 'root') {
+        for (const c of n.children) {
+          if (c.type === 'notebook') walk(c, [], 1);
+        }
+      }
+    };
+    walk(root, [], 0);
+
+    // 笔记不能选「自己当前父」也可列出来方便确认；不特殊过滤
+    const q = moveFilter.trim().toLowerCase();
+    if (!q) return out;
+    return out.filter((o) => o.label.toLowerCase().includes(q));
+  }, [root, moveNodeTarget, moveFilter]);
+
+  /** 当前父节点 ref，用于高亮「当前」 */
+  const currentParentRefId = useMemo((): string | null | undefined => {
+    if (!root || !moveNodeTarget) return undefined;
+    let found: MindNode | null = null;
+    const walk = (n: MindNode, parent: MindNode | null) => {
+      if (n.id === moveNodeTarget.id) {
+        found = parent;
+        return true;
+      }
+      for (const c of n.children) {
+        if (walk(c, n)) return true;
+      }
+      return false;
+    };
+    walk(root, null);
+    if (!found) return null;
+    const p = found as MindNode;
+    if (p.type === 'root') return null;
+    if (p.type === 'notebook') return p.refId ?? null;
+    return null;
+  }, [root, moveNodeTarget]);
+
+  const confirmMoveParent = useCallback(
+    async (opt: ParentOption) => {
+      if (!moveNodeTarget?.refId) return;
+      // 未变化
+      if (opt.parentRefId === currentParentRefId) {
+        setStatus('父节点未变化');
+        setMoveNodeTarget(null);
+        return;
+      }
+      setMoving(true);
+      try {
+        if (moveNodeTarget.type === 'notebook') {
+          await api.updateNotebook(moveNodeTarget.refId, {
+            parentId: opt.parentRefId,
+          });
+        } else if (moveNodeTarget.type === 'note') {
+          await api.updateNote(moveNodeTarget.refId, {
+            notebookId: opt.parentRefId,
+          });
+        } else {
+          return;
+        }
+        const nodeId = moveNodeTarget.id;
+        const title = moveNodeTarget.title;
+        setStatus(`已移动「${title}」→ ${opt.label}`);
+        setMoveNodeTarget(null);
+        setMoveFilter('');
+        // 展开新父，并在布局后聚焦
+        setCollapsed((prev) => {
+          const next = new Set(prev);
+          next.delete(opt.mindId);
+          return next;
+        });
+        viewIntentRef.current = { focus: nodeId };
+        await load({ keepView: true });
+        setSelectedId(nodeId);
+        // load(keepView) 会清空 viewIntent，布局后再聚焦一次
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            viewIntentRef.current = { focus: nodeId };
+            // 若 laid 未再变，直接对准
+            const item = laidRef.current.find((i) => i.id === nodeId);
+            if (item) {
+              setCam((c) => ({
+                ...c,
+                x: item.x,
+                y: item.y,
+                k: Math.max(c.k, MIN_READABLE_K),
+              }));
+            }
+          });
+        });
+      } catch (e) {
+        alert(e instanceof Error ? e.message : '移动失败');
+      } finally {
+        setMoving(false);
+      }
+    },
+    [moveNodeTarget, currentParentRefId, load]
+  );
+
   // F2 重命名 / Delete 删除
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+        return;
+      }
+      if (moveNodeTarget) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeMoveParent();
+        }
         return;
       }
       if (!selectedId || !root) return;
@@ -767,7 +942,7 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedId, root, renameNode, deleteNode]);
+  }, [selectedId, root, renameNode, deleteNode, moveNodeTarget, closeMoveParent]);
 
   const laid = useMemo(() => {
     if (!root) return [] as Laid[];
@@ -866,10 +1041,62 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
       ...c,
       x: item.x,
       y: item.y,
-      k: Math.max(c.k, 0.75),
+      k: Math.max(c.k, MIN_READABLE_K),
     }));
     setSelectedId(nodeId);
   }, []);
+
+  /**
+   * 对准某节点及其当前可见子孙：
+   * 只框选局部，缩放不低于可读下限——不把整张导图塞进屏幕。
+   */
+  const focusNodeRegion = useCallback(
+    (nodeId: string) => {
+      const items = laidRef.current;
+      if (!items.length) return;
+
+      const inSubtree = new Set<string>();
+      const collect = (id: string) => {
+        inSubtree.add(id);
+        for (const it of items) {
+          if (it.parentId === id) collect(it.id);
+        }
+      };
+      collect(nodeId);
+
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const i of items) {
+        if (!inSubtree.has(i.id)) continue;
+        minX = Math.min(minX, i.x - i.w / 2);
+        maxX = Math.max(maxX, i.x + i.w / 2);
+        minY = Math.min(minY, i.y - i.h / 2);
+        maxY = Math.max(maxY, i.y + i.h / 2);
+      }
+
+      if (!Number.isFinite(minX)) {
+        centerOnNode(nodeId);
+        return;
+      }
+
+      const pad = 88;
+      const bw = Math.max(maxX - minX, 60) + pad * 2;
+      const bh = Math.max(maxY - minY, 48) + pad * 2;
+      const { w, h } = sizeRef.current;
+      const fitK = Math.min(w / bw, h / bh) * 0.9;
+      // 局部框选：可读优先；分支很大时也不掉到全图那种过小比例
+      const k = Math.min(FOCUS_MAX_K, Math.max(MIN_READABLE_K, Math.min(MAX_K, fitK)));
+      setCam({
+        x: (minX + maxX) / 2,
+        y: (minY + maxY) / 2,
+        k,
+      });
+      setSelectedId(nodeId);
+    },
+    [centerOnNode]
+  );
 
   /** 点击列表某条：展开路径并定位；笔记可顺带打开预览 */
   const locateHit = useCallback(
@@ -878,13 +1105,13 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
       const item = searchResults.find((h) => h.id === nodeId);
       setActiveHitId(nodeId);
       setCollapsed(collapsedForSearchHits(root, [nodeId]));
-      needFitRef.current = false;
+      // 等布局后再局部聚焦，避免先 fit 全图
+      viewIntentRef.current = { focus: nodeId };
       setStatus(item ? `定位：${item.title}` : '已定位');
       setSearchFocused(false);
       searchInputRef.current?.blur();
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          centerOnNode(nodeId);
           // 笔记：定位后打开内容浮层，并高亮当前搜索关键字
           if (item?.type === 'note') {
             const refId = nodeId.startsWith('note:') ? nodeId.slice(5) : item.id;
@@ -893,7 +1120,7 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
         });
       });
     },
-    [root, searchResults, centerOnNode, openPreview, searchQ]
+    [root, searchResults, openPreview, searchQ]
   );
 
   const clearSearch = useCallback(() => {
@@ -972,11 +1199,14 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
 
   useEffect(() => {
     if (!laid.length) return;
-    if (needFitRef.current) {
-      needFitRef.current = false;
-      requestAnimationFrame(() => fitView());
-    }
-  }, [laid, fitView]);
+    const intent = viewIntentRef.current;
+    if (!intent) return;
+    viewIntentRef.current = null;
+    requestAnimationFrame(() => {
+      if (intent === 'fit') fitView();
+      else focusNodeRegion(intent.focus);
+    });
+  }, [laid, fitView, focusNodeRegion]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -1252,12 +1482,13 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
         return next;
       });
     }
-    needFitRef.current = true;
+    // 只对准该节点局部，不强制全图缩小
+    viewIntentRef.current = { focus: nodeId };
   }
 
   function expandAll() {
     setCollapsed(new Set());
-    needFitRef.current = true;
+    viewIntentRef.current = 'fit';
     setStatus('已展开全部');
   }
 
@@ -1265,7 +1496,7 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
     if (!root) return;
     setCollapsed(overviewCollapse(root));
     setSelectedId(root.id);
-    needFitRef.current = true;
+    viewIntentRef.current = 'fit';
     setStatus('概览模式');
   }
 
@@ -1495,6 +1726,15 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
           </button>
           <button
             type="button"
+            className="btn-ghost !p-1.5"
+            title="修改父节点"
+            disabled={!canEditSelected}
+            onClick={() => selected && openMoveParent(selected)}
+          >
+            <CornerUpLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
             className="btn-ghost !p-1.5 text-red-500 hover:text-red-600"
             title="删除 (Delete)"
             disabled={!canEditSelected}
@@ -1707,7 +1947,7 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
         />
 
         {/* 手机：选中节点后底部快捷操作条 */}
-        {selected && !preview && !ctxMenu && (
+        {selected && !preview && !ctxMenu && !moveNodeTarget && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden">
             <div className="pointer-events-auto flex max-w-full items-center gap-0.5 overflow-x-auto rounded-2xl border border-slate-200/90 bg-white/95 px-1.5 py-1 shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
               {(selected.type === 'root' || selected.type === 'notebook') && (
@@ -1748,6 +1988,14 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
                   >
                     <Pencil className="h-4 w-4" />
                     重命名
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost shrink-0 !px-2.5 !py-2 text-xs"
+                    onClick={() => openMoveParent(selected)}
+                  >
+                    <CornerUpLeft className="h-4 w-4" />
+                    改父节点
                   </button>
                   <button
                     type="button"
@@ -1841,6 +2089,14 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
                   </button>
                   <button
                     type="button"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
+                    onClick={() => openMoveParent(ctxMenu.node)}
+                  >
+                    <CornerUpLeft className="h-3.5 w-3.5 text-amber-500" />
+                    修改父节点
+                  </button>
+                  <button
+                    type="button"
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
                     onClick={() => void deleteNode(ctxMenu.node)}
                   >
@@ -1850,6 +2106,93 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
                   </button>
                 </>
               )}
+            </div>,
+            document.body
+          )}
+
+        {/* 修改父节点：选择目标分类 / 根 */}
+        {moveNodeTarget &&
+          createPortal(
+            <div className="fixed inset-0 z-[10020] flex items-end justify-center sm:items-center sm:p-4">
+              <button
+                type="button"
+                className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
+                aria-label="取消"
+                disabled={moving}
+                onClick={closeMoveParent}
+              />
+              <div
+                className="relative flex max-h-[min(80vh,32rem)] w-full max-w-md flex-col rounded-t-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:rounded-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      修改父节点
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-slate-500">
+                      {moveNodeTarget.type === 'notebook' ? '分类' : '笔记'}：
+                      {moveNodeTarget.title}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-ghost !p-1.5"
+                    disabled={moving}
+                    onClick={closeMoveParent}
+                    title="关闭"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">
+                  <input
+                    className="input w-full py-1.5 text-sm"
+                    placeholder="筛选分类…"
+                    value={moveFilter}
+                    autoFocus
+                    disabled={moving}
+                    onChange={(e) => setMoveFilter(e.target.value)}
+                  />
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto py-1">
+                  {parentOptions.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-xs text-slate-400">
+                      无匹配分类
+                    </div>
+                  ) : (
+                    parentOptions.map((opt) => {
+                      const isCurrent =
+                        opt.parentRefId === currentParentRefId ||
+                        (opt.parentRefId == null && currentParentRefId == null);
+                      return (
+                        <button
+                          key={opt.mindId + String(opt.parentRefId)}
+                          type="button"
+                          disabled={moving || isCurrent}
+                          className={clsx(
+                            'flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition-colors',
+                            isCurrent
+                              ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800',
+                            moving && 'opacity-60'
+                          )}
+                          style={{ paddingLeft: `${12 + Math.min(opt.depth, 6) * 10}px` }}
+                          onClick={() => void confirmMoveParent(opt)}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{opt.label}</span>
+                          {isCurrent && (
+                            <span className="shrink-0 text-[10px] text-indigo-500">当前</span>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-400 dark:border-slate-800">
+                  {moving ? '移动中…' : '选择新的上级分类；笔记也可挂到根下'}
+                </div>
+              </div>
             </div>,
             document.body
           )}
