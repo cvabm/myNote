@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent, type InputHTMLAttributes } from 'react';
-import { FileUp, FolderOpen, Loader2, Monitor, Moon, Sun, X } from 'lucide-react';
+import { FileUp, FolderOpen, Loader2, LogOut, Monitor, Moon, Sun, X } from 'lucide-react';
 import clsx from 'clsx';
-import { api } from '../api';
+import { api, setToken } from '../api';
 import { useTheme, type ThemePreference } from '../context/ThemeContext';
 import { filesToImportList, importMarkdownFiles } from '../utils/importMd';
 
@@ -25,7 +25,9 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
-
+  const [logoutMsg, setLogoutMsg] = useState('');
+  const [logoutErr, setLogoutErr] = useState('');
+  const [logoutLoading, setLogoutLoading] = useState(false);
 
   const [skipEmpty, setSkipEmpty] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -42,14 +44,47 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
     setErr('');
     setLoading(true);
     try {
-      await api.changePassword(oldPassword, newPassword);
-      setMsg('密码已修改');
+      const res = await api.changePassword(oldPassword, newPassword);
+      // 服务端已 bump token_version：旧设备 JWT 失效；本机换新 token
+      if (res.token) setToken(res.token);
+      setMsg('密码已修改，其它设备的登录已全部失效');
       setOldPassword('');
       setNewPassword('');
     } catch (error) {
       setErr(error instanceof Error ? error.message : '修改失败');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onLogoutOthers() {
+    setLogoutMsg('');
+    setLogoutErr('');
+    if (!window.confirm('使其它设备上的登录全部失效？（本机保持登录）')) return;
+    setLogoutLoading(true);
+    try {
+      const res = await api.logoutAll(true);
+      if (res.token) setToken(res.token);
+      setLogoutMsg('已退出其它设备登录');
+    } catch (error) {
+      setLogoutErr(error instanceof Error ? error.message : '操作失败');
+    } finally {
+      setLogoutLoading(false);
+    }
+  }
+
+  async function onLogoutEverywhere() {
+    setLogoutMsg('');
+    setLogoutErr('');
+    if (!window.confirm('退出全部设备（包括本机）？需要重新登录。')) return;
+    setLogoutLoading(true);
+    try {
+      await api.logoutAll(false);
+      setToken(null);
+      window.location.reload();
+    } catch (error) {
+      setLogoutErr(error instanceof Error ? error.message : '操作失败');
+      setLogoutLoading(false);
     }
   }
 
@@ -241,7 +276,7 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
               修改密码
             </h3>
             <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-              首次部署后请立即更换默认密码
+              首次部署后请立即更换默认密码。改密后其它设备登录会全部失效。
             </p>
             <form onSubmit={onSubmit} className="space-y-3">
               <label className="block">
@@ -277,6 +312,40 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
                 {loading ? '保存中…' : '保存密码'}
               </button>
             </form>
+          </section>
+
+          <hr className="border-slate-100 dark:border-slate-800" />
+
+          {/* 登录会话 */}
+          <section>
+            <h3 className="mb-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
+              登录安全
+            </h3>
+            <p className="mb-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+              公网部署时，若怀疑账号泄露或在公用设备登过，可强制失效其它登录。
+              登录失败超过 10 次（15 分钟窗口）会临时锁定。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-ghost border border-slate-200 dark:border-slate-700"
+                disabled={logoutLoading || importing}
+                onClick={() => void onLogoutOthers()}
+              >
+                <LogOut className="h-4 w-4" />
+                {logoutLoading ? '处理中…' : '退出其它设备'}
+              </button>
+              <button
+                type="button"
+                className="btn-ghost border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/40"
+                disabled={logoutLoading || importing}
+                onClick={() => void onLogoutEverywhere()}
+              >
+                退出全部（含本机）
+              </button>
+            </div>
+            {logoutMsg && <div className="mt-2 text-sm text-emerald-600">{logoutMsg}</div>}
+            {logoutErr && <div className="mt-2 text-sm text-red-600">{logoutErr}</div>}
           </section>
         </div>
       </div>

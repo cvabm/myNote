@@ -49,9 +49,16 @@ export const api = {
     return request<User>('/api/auth/me');
   },
   changePassword(oldPassword: string, newPassword: string) {
-    return request<{ ok: boolean }>('/api/auth/change-password', {
+    return request<{ ok: boolean; token?: string }>('/api/auth/change-password', {
       method: 'POST',
       body: JSON.stringify({ oldPassword, newPassword }),
+    });
+  },
+  /** 使所有已签发 JWT 失效；keepCurrent 时返回本机新 token */
+  logoutAll(keepCurrent = true) {
+    return request<{ ok: boolean; token: string | null }>('/api/auth/logout-all', {
+      method: 'POST',
+      body: JSON.stringify({ keepCurrent }),
     });
   },
 

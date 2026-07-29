@@ -8,7 +8,7 @@
 
 | 功能 | 说明 |
 | --- | --- |
-| 用户登录 | JWT 鉴权，可修改密码 |
+| 用户登录 | JWT 鉴权；改密 / 退出其它设备会使旧 token 失效；登录限流 |
 | 暗色主题 | 浅色 / 深色 / 跟随系统 |
 | 思维导图 | 主入口：结构浏览、搜索、预览与编辑笔记 |
 | Markdown 编辑 | 预览 / 编辑 / 分栏，自动保存 |
@@ -92,9 +92,11 @@ myNote/
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/api/auth/login` | 登录 |
+| POST | `/api/auth/login` | 登录（失败限流） |
 | GET | `/api/auth/me` | 当前用户 |
-| POST | `/api/auth/change-password` | 改密 |
+| POST | `/api/auth/change-password` | 改密（其它设备 JWT 失效，返回新 token） |
+| POST | `/api/auth/logout-all` | 退出其它/全部登录（`keepCurrent`） |
+| POST | `/api/auth/logout-all` | 退出其它/全部登录（`keepCurrent`） |
 | CRUD | `/api/notebooks` | 笔记本 |
 | CRUD | `/api/notes` | 笔记（含 trash/restore；列表支持 `limit`/`offset` 分页） |
 | CRUD | `/api/moments` | 说说（短动态；列表支持 `limit`/`before` 游标分页） |
