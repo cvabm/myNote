@@ -2,6 +2,18 @@ export type User = {
   id: string;
   username: string;
   displayName: string;
+  sessionId?: string | null;
+};
+
+/** 登录设备 / 会话 */
+export type LoginSession = {
+  id: string;
+  deviceLabel: string;
+  ip: string;
+  userAgent: string;
+  createdAt: string;
+  lastSeenAt: string;
+  current: boolean;
 };
 
 export type Notebook = {

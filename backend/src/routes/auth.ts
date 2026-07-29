@@ -6,7 +6,13 @@ import {
   signToken,
   getUser,
   bumpTokenVersion,
+  createSession,
+  revokeSession,
+  revokeAllSessions,
+  listActiveSessions,
+  clientIp,
   type AppVariables,
+  type SessionRow,
 } from '../auth.js';
 
 type UserRow = {
@@ -25,11 +31,7 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
 
 function clientKey(c: { req: { header: (n: string) => string | undefined } }, username: string) {
-  const ip =
-    c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
-    c.req.header('x-real-ip') ||
-    'unknown';
-  return `${ip}|${username.toLowerCase()}`;
+  return `${clientIp(c)}|${username.toLowerCase()}`;
 }
 
 function checkLoginRate(key: string): { ok: true } | { ok: false; retryAfterSec: number } {
@@ -59,13 +61,24 @@ function clearLoginFailures(key: string) {
   loginAttempts.delete(key);
 }
 
-// 偶尔清理过期项，避免 Map 无限涨
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of loginAttempts) {
     if (now >= v.resetAt) loginAttempts.delete(k);
   }
 }, 60_000).unref?.();
+
+function mapSession(row: SessionRow, currentSessionId: string | null) {
+  return {
+    id: row.id,
+    deviceLabel: row.device_label || '未知设备',
+    ip: row.ip || '',
+    userAgent: row.user_agent || '',
+    createdAt: row.created_at,
+    lastSeenAt: row.last_seen_at,
+    current: !!currentSessionId && row.id === currentSessionId,
+  };
+}
 
 authRoutes.post('/login', async (c) => {
   const body = await c.req.json().catch(() => ({}));
@@ -99,10 +112,17 @@ authRoutes.post('/login', async (c) => {
   }
 
   clearLoginFailures(key);
+
+  const session = createSession(user.id, {
+    userAgent: c.req.header('user-agent') || '',
+    ip: clientIp(c),
+  });
+
   const token = await signToken({
     id: user.id,
     username: user.username,
     tokenVersion: user.token_version ?? 0,
+    sessionId: session.id,
   });
   return c.json({
     token,
@@ -126,7 +146,29 @@ authRoutes.get('/me', requireAuth, (c) => {
     id: user.id,
     username: user.username,
     displayName: user.display_name,
+    sessionId: auth.sessionId,
   });
+});
+
+/** 当前用户的活跃设备列表 */
+authRoutes.get('/sessions', requireAuth, (c) => {
+  const auth = getUser(c);
+  const rows = listActiveSessions(auth.id);
+  return c.json({
+    items: rows.map((r) => mapSession(r, auth.sessionId)),
+  });
+});
+
+/** 踢掉某一台设备 */
+authRoutes.delete('/sessions/:id', requireAuth, (c) => {
+  const auth = getUser(c);
+  const id = c.req.param('id');
+  if (auth.sessionId && id === auth.sessionId) {
+    return c.json({ error: '不能踢掉当前设备，请使用退出登录' }, 400);
+  }
+  const ok = revokeSession(id, auth.id);
+  if (!ok) return c.json({ error: '会话不存在或已失效' }, 404);
+  return c.json({ ok: true });
 });
 
 authRoutes.post('/change-password', requireAuth, async (c) => {
@@ -151,38 +193,70 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
   }
 
   const hash = bcrypt.hashSync(newPassword, 10);
-  const tx = db.transaction(() => {
+  const result = db.transaction(() => {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, auth.id);
-    return bumpTokenVersion(auth.id);
-  });
-  const tokenVersion = tx();
+    const tokenVersion = bumpTokenVersion(auth.id);
+    // 其它会话全部吊销；当前会话若存在则保留，否则新建
+    revokeAllSessions(auth.id, auth.sessionId);
+    let sessionId = auth.sessionId;
+    if (sessionId) {
+      const still = db
+        .prepare(
+          `SELECT id FROM user_sessions WHERE id = ? AND user_id = ? AND revoked_at IS NULL`
+        )
+        .get(sessionId, auth.id);
+      if (!still) sessionId = null;
+    }
+    if (!sessionId) {
+      sessionId = createSession(auth.id, {
+        userAgent: c.req.header('user-agent') || '',
+        ip: clientIp(c),
+      }).id;
+    }
+    return { tokenVersion, sessionId };
+  })();
 
-  // 当前设备拿新 token；其它设备旧 JWT 全部失效
   const token = await signToken({
     id: auth.id,
     username: auth.username,
-    tokenVersion,
+    tokenVersion: result.tokenVersion,
+    sessionId: result.sessionId,
   });
   return c.json({ ok: true, token });
 });
 
-/** 退出全部登录：递增 token_version，当前设备可选择拿新 token 或本地清空 */
+/** 退出其它/全部登录 */
 authRoutes.post('/logout-all', requireAuth, async (c) => {
   const auth = getUser(c);
   const body = await c.req.json().catch(() => ({}));
-  // keepCurrent=true：本机换新 token；false：本机也下线（只 bump，不发新 token）
   const keepCurrent = body.keepCurrent !== false;
 
-  const tokenVersion = bumpTokenVersion(auth.id);
+  const result = db.transaction(() => {
+    const tokenVersion = bumpTokenVersion(auth.id);
+    if (keepCurrent) {
+      revokeAllSessions(auth.id, auth.sessionId);
+      let sessionId = auth.sessionId;
+      if (!sessionId) {
+        sessionId = createSession(auth.id, {
+          userAgent: c.req.header('user-agent') || '',
+          ip: clientIp(c),
+        }).id;
+      }
+      return { tokenVersion, sessionId, keep: true as const };
+    }
+    revokeAllSessions(auth.id);
+    return { tokenVersion, sessionId: null as string | null, keep: false as const };
+  })();
 
-  if (!keepCurrent) {
+  if (!result.keep) {
     return c.json({ ok: true, token: null as string | null });
   }
 
   const token = await signToken({
     id: auth.id,
     username: auth.username,
-    tokenVersion,
+    tokenVersion: result.tokenVersion,
+    sessionId: result.sessionId,
   });
   return c.json({ ok: true, token });
 });

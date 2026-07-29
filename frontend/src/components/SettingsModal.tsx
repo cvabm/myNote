@@ -1,8 +1,21 @@
-import { useRef, useState, type FormEvent, type InputHTMLAttributes } from 'react';
-import { FileUp, FolderOpen, Loader2, LogOut, Monitor, Moon, Sun, X } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes } from 'react';
+import {
+  FileUp,
+  FolderOpen,
+  Loader2,
+  LogOut,
+  Monitor,
+  Moon,
+  RefreshCw,
+  Smartphone,
+  Sun,
+  Trash2,
+  X,
+} from 'lucide-react';
 import clsx from 'clsx';
 import { api, setToken } from '../api';
 import { useTheme, type ThemePreference } from '../context/ThemeContext';
+import type { LoginSession } from '../types';
 import { filesToImportList, importMarkdownFiles } from '../utils/importMd';
 
 type Props = {
@@ -28,6 +41,10 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
   const [logoutMsg, setLogoutMsg] = useState('');
   const [logoutErr, setLogoutErr] = useState('');
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [sessions, setSessions] = useState<LoginSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsErr, setSessionsErr] = useState('');
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const [skipEmpty, setSkipEmpty] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -36,7 +53,37 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
 
+  async function loadSessions() {
+    setSessionsErr('');
+    setSessionsLoading(true);
+    try {
+      const res = await api.listSessions();
+      setSessions(res.items);
+    } catch (e) {
+      setSessionsErr(e instanceof Error ? e.message : '加载设备列表失败');
+    } finally {
+      setSessionsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    void loadSessions();
+  }, [open]);
+
   if (!open) return null;
+
+  function formatTime(isoLike: string) {
+    // sqlite: 2026-07-29 12:00:00
+    const d = new Date(isoLike.includes('T') ? isoLike : isoLike.replace(' ', 'T') + 'Z');
+    if (Number.isNaN(d.getTime())) return isoLike;
+    return d.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -50,6 +97,7 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
       setMsg('密码已修改，其它设备的登录已全部失效');
       setOldPassword('');
       setNewPassword('');
+      void loadSessions();
     } catch (error) {
       setErr(error instanceof Error ? error.message : '修改失败');
     } finally {
@@ -66,6 +114,7 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
       const res = await api.logoutAll(true);
       if (res.token) setToken(res.token);
       setLogoutMsg('已退出其它设备登录');
+      void loadSessions();
     } catch (error) {
       setLogoutErr(error instanceof Error ? error.message : '操作失败');
     } finally {
@@ -85,6 +134,22 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
     } catch (error) {
       setLogoutErr(error instanceof Error ? error.message : '操作失败');
       setLogoutLoading(false);
+    }
+  }
+
+  async function onRevokeSession(s: LoginSession) {
+    if (s.current) return;
+    if (!window.confirm(`退出设备「${s.deviceLabel}」？`)) return;
+    setRevokingId(s.id);
+    setLogoutErr('');
+    try {
+      await api.revokeSession(s.id);
+      setLogoutMsg(`已踢下线：${s.deviceLabel}`);
+      await loadSessions();
+    } catch (e) {
+      setLogoutErr(e instanceof Error ? e.message : '操作失败');
+    } finally {
+      setRevokingId(null);
     }
   }
 
@@ -316,15 +381,92 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
 
           <hr className="border-slate-100 dark:border-slate-800" />
 
-          {/* 登录会话 */}
+          {/* 登录设备 */}
           <section>
-            <h3 className="mb-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
-              登录安全
-            </h3>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                登录设备
+              </h3>
+              <button
+                type="button"
+                className="btn-ghost !p-1.5"
+                title="刷新列表"
+                disabled={sessionsLoading || importing}
+                onClick={() => void loadSessions()}
+              >
+                <RefreshCw
+                  className={clsx('h-3.5 w-3.5', sessionsLoading && 'animate-spin')}
+                />
+              </button>
+            </div>
             <p className="mb-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-              公网部署时，若怀疑账号泄露或在公用设备登过，可强制失效其它登录。
-              登录失败超过 10 次（15 分钟窗口）会临时锁定。
+              显示当前有效登录。可踢掉单台设备，或一键退出其它/全部。
+              登录失败超过 10 次（15 分钟）会临时锁定。
+              列表在重新登录后才会出现；旧 token 需重新登录一次。
             </p>
+
+            <div className="mb-3 max-h-52 space-y-2 overflow-y-auto">
+              {sessionsLoading && sessions.length === 0 ? (
+                <div className="flex items-center gap-2 py-4 text-xs text-slate-400">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  加载中…
+                </div>
+              ) : sessions.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-400 dark:border-slate-700">
+                  暂无会话记录。请退出后重新登录一次，即可在此看到本机。
+                </div>
+              ) : (
+                sessions.map((s) => (
+                  <div
+                    key={s.id}
+                    className={clsx(
+                      'flex items-start gap-2 rounded-xl border px-3 py-2.5',
+                      s.current
+                        ? 'border-indigo-200 bg-indigo-50/80 dark:border-indigo-500/30 dark:bg-indigo-500/10'
+                        : 'border-slate-200 dark:border-slate-700'
+                    )}
+                  >
+                    <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-slate-800 dark:text-slate-100">
+                        <span className="truncate">{s.deviceLabel}</span>
+                        {s.current && (
+                          <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+                            本机
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        {s.ip ? `${s.ip} · ` : ''}
+                        最近活跃 {formatTime(s.lastSeenAt)}
+                        {' · '}
+                        登录于 {formatTime(s.createdAt)}
+                      </div>
+                    </div>
+                    {!s.current && (
+                      <button
+                        type="button"
+                        className="btn-ghost shrink-0 !p-1.5 text-red-500"
+                        title="踢下线"
+                        disabled={revokingId === s.id || logoutLoading || importing}
+                        onClick={() => void onRevokeSession(s)}
+                      >
+                        {revokingId === s.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {sessionsErr && (
+              <div className="mb-2 text-sm text-red-600">{sessionsErr}</div>
+            )}
+
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
