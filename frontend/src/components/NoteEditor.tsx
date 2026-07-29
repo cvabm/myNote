@@ -42,12 +42,13 @@ export function NoteEditor({
       <div className="flex items-center gap-1 border-b border-slate-200 px-2 py-2 safe-pt sm:gap-2 sm:px-4 dark:border-slate-800">
         <button
           type="button"
-          className="btn-ghost shrink-0 !p-2 md:hidden"
+          className="btn-ghost shrink-0 !px-2 !py-2"
           onClick={onClose}
-          title="返回列表"
-          aria-label="返回列表"
+          title="返回思维导图"
+          aria-label="返回思维导图"
         >
           <ArrowLeft className="h-5 w-5" />
+          <span className="hidden text-sm sm:inline">返回</span>
         </button>
         <input
           className="min-w-0 flex-1 border-0 bg-transparent text-base font-semibold text-slate-800 outline-none placeholder:text-slate-300 dark:text-slate-100 dark:placeholder:text-slate-600 sm:text-lg"

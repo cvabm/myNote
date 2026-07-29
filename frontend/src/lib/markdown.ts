@@ -279,6 +279,35 @@ export function removeImageFromMarkdown(content: string, src: string): string {
     .trimEnd();
 }
 
+/**
+ * 在已渲染的 HTML 中高亮关键字（只处理标签外的文本，不破坏属性/标签）。
+ * 多词空格分隔，不区分大小写。
+ */
+export function highlightHtmlKeywords(html: string, query: string): string {
+  const terms = (query || '')
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  if (!html || terms.length === 0) return html;
+
+  const pattern = terms
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  if (!pattern) return html;
+  const re = new RegExp(`(${pattern})`, 'gi');
+  const markOpen =
+    '<mark class="rounded-sm bg-amber-200/90 px-0.5 font-medium text-amber-950 dark:bg-amber-500/35 dark:text-amber-100">';
+  const markClose = '</mark>';
+
+  return html.replace(/(<[^>]+>)|([^<]+)/g, (full, tag: string, text: string) => {
+    if (tag) return tag;
+    if (!text) return full;
+    // 跳过已在 mark 内的极短碎片由 split 自然处理
+    return text.replace(re, `${markOpen}$1${markClose}`);
+  });
+}
+
 /** 从 /uploads/xxx.jpg 提取文件名 */
 export function uploadNameFromSrc(src: string): string | null {
   try {
