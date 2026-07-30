@@ -6,6 +6,7 @@ import {
   Menu,
   MessageCircle,
   Pencil,
+  Search,
   Send,
   Trash2,
   X,
@@ -20,8 +21,10 @@ const MOMENTS_PAGE_SIZE = 20;
 
 type Props = {
   username: string;
-  /** 侧栏传入的搜索关键字 */
+  /** URL / 父组件同步的搜索关键字 */
   searchQuery?: string;
+  /** 搜索关键字变更（防抖后写回 filter / URL） */
+  onSearchQueryChange?: (q: string) => void;
   onSearchingChange?: (searching: boolean) => void;
   onOpenSidebar?: () => void;
 };
@@ -99,6 +102,7 @@ function ImageGrid({
 export function MomentsFeed({
   username,
   searchQuery = '',
+  onSearchQueryChange,
   onSearchingChange,
   onOpenSidebar,
 }: Props) {
@@ -115,15 +119,63 @@ export function MomentsFeed({
   const [editImages, setEditImages] = useState<string[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  /** 输入框即时值；实际请求用防抖后的 searchQuery */
+  const [searchInput, setSearchInput] = useState(searchQuery);
   const fileRef = useRef<HTMLInputElement>(null);
   const editFileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const searchSeq = useRef(0);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingMoreRef = useRef(false);
   const q = searchQuery.trim();
   const isSearch = !!q;
+
+  // 外部 URL / filter 变化时同步输入框
+  useEffect(() => {
+    setSearchInput(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, []);
+
+  /** Ctrl/Cmd + F → 聚焦说说搜索（拦截浏览器默认查找） */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key !== 'f' && e.key !== 'F') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const input = searchInputRef.current;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+
+  function handleSearchInput(value: string) {
+    setSearchInput(value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const delay = value.trim() ? 220 : 0;
+    searchTimer.current = setTimeout(() => {
+      onSearchQueryChange?.(value.trim());
+    }, delay);
+  }
+
+  function clearSearch() {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    setSearchInput('');
+    onSearchQueryChange?.('');
+    searchInputRef.current?.focus();
+  }
 
   const load = useCallback(async () => {
     const seq = ++searchSeq.current;
@@ -311,7 +363,7 @@ export function MomentsFeed({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-3 safe-pt md:px-6 dark:border-slate-800">
+      <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2.5 safe-pt md:px-6 dark:border-slate-800">
         <button
           type="button"
           className="btn-ghost !p-2 md:hidden"
@@ -321,27 +373,66 @@ export function MomentsFeed({
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/15 text-sky-600 dark:text-sky-400">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/15 text-sky-600 dark:text-sky-400">
           <MessageCircle className="h-4 w-4" />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 shrink-0">
           <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
             {isSearch ? '搜索说说' : '说说'}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-slate-400">
             {(loading || loadingMore) && <Loader2 className="h-3 w-3 animate-spin" />}
             {isSearch ? (
-              <span className="truncate">
-                “{q}” · 已加载 {moments.length}
+              <span className="truncate max-w-[8rem] sm:max-w-[12rem]">
+                “{q}” · {moments.length}
                 {hasMore ? '+' : ''} 条
               </span>
             ) : (
               <span>
-                已加载 {moments.length}
+                {moments.length}
                 {hasMore ? '+' : ''} 条
               </span>
             )}
           </div>
+        </div>
+
+        {/* 顶部搜索：与思维导图一致，Ctrl+F 聚焦 */}
+        <div className="relative mx-1 min-w-0 flex-1 basis-[12rem]" data-search-box>
+          <Search
+            className={clsx(
+              'pointer-events-none absolute left-2.5 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2',
+              loading && isSearch ? 'animate-pulse text-brand-500' : 'text-slate-400'
+            )}
+          />
+          <input
+            ref={searchInputRef}
+            className="input w-full py-1.5 pl-8 pr-8 text-sm md:py-1 md:text-xs"
+            placeholder="搜索说说… (Ctrl+F)"
+            value={searchInput}
+            onChange={(e) => handleSearchInput(e.target.value)}
+            title="Ctrl+F 聚焦搜索"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                if (searchInput) clearSearch();
+                else (e.target as HTMLInputElement).blur();
+              }
+            }}
+            enterKeyHint="search"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {searchInput && (
+            <button
+              type="button"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+              title="清除"
+              onClick={clearSearch}
+              aria-label="清除搜索"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
 

@@ -297,12 +297,6 @@ export default function App() {
           setSelectedId(null);
           setSidebarOpen(false);
         }}
-        onSearch={(q) => {
-          // 仅说说支持侧栏搜索；其它入口用思维导图内搜索
-          if (filter.type === 'moments') {
-            setFilter(q ? { type: 'moments', q } : { type: 'moments' });
-          }
-        }}
         onLogout={logout}
         onOpenSettings={() => {
           setSettingsOpen(true);
@@ -311,7 +305,6 @@ export default function App() {
         username={user.displayName || user.username}
         mobileOpen={sidebarOpen}
         onMobileClose={() => setSidebarOpen(false)}
-        searching={searching}
       />
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -319,6 +312,9 @@ export default function App() {
           <MomentsFeed
             username={user.displayName || user.username}
             searchQuery={momentsQuery}
+            onSearchQueryChange={(q) => {
+              setFilter(q ? { type: 'moments', q } : { type: 'moments' });
+            }}
             onSearchingChange={setSearching}
             onOpenSidebar={() => setSidebarOpen(true)}
           />
