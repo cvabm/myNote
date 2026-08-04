@@ -28,6 +28,11 @@ type Props = {
   onOpenSidebar?: () => void;
   /** 可选：在编辑器中打开（预览弹层里的按钮） */
   onOpenNote?: (noteId: string) => void;
+  /**
+   * 导图是否为当前前台视图。进编辑器时仍挂载但应置 false，
+   * 避免拦截 Ctrl+F 等快捷键，让出浏览器原生查找。
+   */
+  active?: boolean;
 };
 
 type CtxMenu = {
@@ -415,7 +420,7 @@ function clearShadow(ctx: CanvasRenderingContext2D) {
   ctx.shadowOffsetY = 0;
 }
 
-export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
+export function MindMap({ onOpenSidebar, onOpenNote, active = true }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [root, setRoot] = useState<MindNode | null>(null);
@@ -542,8 +547,9 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [preview, closePreview]);
 
-  /** Ctrl/Cmd + F → 聚焦思维导图搜索（拦截浏览器默认查找） */
+  /** Ctrl/Cmd + F → 聚焦思维导图搜索（拦截浏览器默认查找）；编辑器前台时不拦截 */
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key !== 'f' && e.key !== 'F') return;
@@ -559,7 +565,7 @@ export function MindMap({ onOpenSidebar, onOpenNote }: Props) {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, []);
+  }, [active]);
 
   const previewHtml = useMemo(() => {
     if (!preview?.content) return '';
