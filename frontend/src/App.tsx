@@ -375,6 +375,7 @@ export default function App() {
               aria-hidden={!!selectedId}
             >
               <MindMap
+                active={!selectedId}
                 onOpenSidebar={() => setSidebarOpen(true)}
                 onOpenNote={(noteId) => {
                   setOpenInEditMode(true);
