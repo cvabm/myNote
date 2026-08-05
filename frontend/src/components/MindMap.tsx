@@ -22,7 +22,7 @@ import {
 import { api } from '../api';
 import { highlightHtmlKeywords, renderMarkdown } from '../lib/markdown';
 import type { MindNode, Note } from '../types';
-import { highlightText } from '../utils';
+import { handleCodeCopyClick, highlightText } from '../utils';
 
 type Props = {
   onOpenSidebar?: () => void;
@@ -2268,6 +2268,12 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true }: Props) {
                   <div
                     className="md-preview prose-sm max-w-none"
                     dangerouslySetInnerHTML={{ __html: previewHtml }}
+                    onClick={(e) => {
+                      if (handleCodeCopyClick(e.target)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
                   />
                 ) : (
                   <div className="py-12 text-center text-sm text-slate-400">（空笔记）</div>

@@ -46,6 +46,70 @@ export function debounce<T extends (...args: never[]) => void>(fn: T, ms: number
   };
 }
 
+/**
+ * 复制文本。HTTP 非 localhost 下 navigator.clipboard 常为 undefined，需 execCommand 降级。
+ */
+export async function copyTextToClipboard(text: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // 继续降级
+    }
+  }
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+export function flashCopyButton(btn: HTMLButtonElement, ok: boolean) {
+  const label = btn.textContent || '复制';
+  btn.textContent = ok ? '已复制' : '失败';
+  if (ok) btn.classList.add('is-copied');
+  window.setTimeout(() => {
+    btn.textContent = label === '已复制' || label === '失败' ? '复制' : label;
+    btn.classList.remove('is-copied');
+  }, 1500);
+}
+
+/**
+ * 处理 md-preview 内 `.code-copy-btn` 点击。
+ * @returns 是否已处理（是复制按钮）
+ */
+export function handleCodeCopyClick(target: EventTarget | null): boolean {
+  const el = target instanceof Element ? target : null;
+  const copyBtn = el?.closest('.code-copy-btn');
+  if (!(copyBtn instanceof HTMLButtonElement)) return false;
+
+  const block = copyBtn.closest('.code-block');
+  const raw = block?.querySelector('textarea.code-raw') as HTMLTextAreaElement | null;
+  let text = raw?.value ?? '';
+  // 兜底：若 raw 为空则从可见代码取文本
+  if (!text && block) {
+    const code = block.querySelector('pre code') || block.querySelector('pre');
+    text = code?.textContent ?? '';
+  }
+  void copyTextToClipboard(text).then((ok) => flashCopyButton(copyBtn, ok));
+  return true;
+}
+
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
