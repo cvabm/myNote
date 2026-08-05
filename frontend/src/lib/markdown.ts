@@ -300,12 +300,22 @@ export function highlightHtmlKeywords(html: string, query: string): string {
     '<mark class="rounded-sm bg-amber-200/90 px-0.5 font-medium text-amber-950 dark:bg-amber-500/35 dark:text-amber-100">';
   const markClose = '</mark>';
 
-  return html.replace(/(<[^>]+>)|([^<]+)/g, (full, tag: string, text: string) => {
-    if (tag) return tag;
-    if (!text) return full;
-    // 跳过已在 mark 内的极短碎片由 split 自然处理
-    return text.replace(re, `${markOpen}$1${markClose}`);
-  });
+  const highlightTextNodes = (chunk: string) =>
+    chunk.replace(/(<[^>]+>)|([^<]+)/g, (full, tag: string, text: string) => {
+      if (tag) return tag;
+      if (!text) return full;
+      return text.replace(re, `${markOpen}$1${markClose}`);
+    });
+
+  // 不碰 textarea/script/style 内部，避免污染代码复制用的 code-raw
+  const protectedSplit =
+    /(<textarea\b[\s\S]*?<\/textarea>|<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>)/gi;
+  return html
+    .split(protectedSplit)
+    .map((part) =>
+      /^<(textarea|script|style)\b/i.test(part) ? part : highlightTextNodes(part)
+    )
+    .join('');
 }
 
 /** 从 /uploads/xxx.jpg 提取文件名 */
