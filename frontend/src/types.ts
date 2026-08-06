@@ -69,7 +69,14 @@ export type ViewFilter =
   /** 思维导图（分类节点 + 笔记叶子） */
   | { type: 'mindmap' }
   /** @deprecated 兼容旧链接 ?v=globe */
-  | { type: 'globe' };
+  | { type: 'globe' }
+  /** 对外软件推荐（独立 Markdown，不进导图） */
+  | { type: 'software' };
+
+export type SoftwarePage = {
+  content: string;
+  updatedAt: string;
+};
 
 /** 思维导图节点 */
 export type MindNode = {

@@ -4,6 +4,7 @@ import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { resolveDataPath } from './paths.js';
+import { SOFTWARE_SEED } from './softwareSeed.js';
 
 /** 始终解析到仓库根 data/，避免 cwd=backend 时落到 backend/data */
 export const DB_PATH = resolveDataPath(process.env.DB_PATH || './data/mynote.db');
@@ -149,7 +150,16 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_graph_edges_user ON graph_edges(user_id);
     CREATE INDEX IF NOT EXISTS idx_graph_edges_from ON graph_edges(from_id);
     CREATE INDEX IF NOT EXISTS idx_graph_edges_to ON graph_edges(to_id);
+
+    -- 对外软件清单：独立一篇 Markdown，不进思维导图
+    CREATE TABLE IF NOT EXISTS software_page (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      content TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
+
+  seedSoftwarePage();
 
   // 历史版本曾有标签表，启动时清理
   db.exec(`
@@ -224,6 +234,18 @@ export function initDb() {
 
     console.log(`[init] 已创建管理员: ${ADMIN_USER} / ${ADMIN_PASS}`);
   }
+}
+
+function seedSoftwarePage() {
+  const row = db.prepare('SELECT id FROM software_page WHERE id = 1').get() as
+    | { id: number }
+    | undefined;
+  if (row) return;
+  db.prepare(
+    `INSERT INTO software_page (id, content, updated_at)
+     VALUES (1, ?, datetime('now'))`
+  ).run(SOFTWARE_SEED);
+  console.log('[db] 已写入软件推荐初始清单');
 }
 
 export function syncNoteFts(noteId: string, title: string, content: string) {

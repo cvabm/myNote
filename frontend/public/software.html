@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>软件推荐</title>
+    <style>
+        :root {
+            --bg: #f6f2ea;
+            --panel: #fffdfa;
+            --panel-soft: #fcf8f1;
+            --text: #24303f;
+            --muted: #667085;
+            --line: #eadfce;
+            --line-strong: #dbc8ac;
+            --accent: #b56a2d;
+            --accent-soft: rgba(181, 106, 45, 0.1);
+            --shadow: 0 18px 48px rgba(91, 58, 22, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font: 14px/1.65 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(230, 188, 142, 0.22), transparent 28%),
+                radial-gradient(circle at top right, rgba(170, 198, 186, 0.18), transparent 24%),
+                linear-gradient(180deg, #faf6ef 0%, #f6f2ea 55%, #f3eee5 100%);
+            padding: 16px;
+        }
+
+        a {
+            color: #285ea8;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        a:hover {
+            color: var(--accent);
+            text-decoration: underline;
+        }
+
+        .page {
+            width: min(1180px, 100%);
+            margin: 0 auto;
+            background: rgba(255, 253, 249, 0.88);
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            backdrop-filter: blur(14px);
+        }
+
+        .hero {
+            padding: 24px 24px 18px;
+            border-bottom: 1px solid var(--line);
+            background:
+                linear-gradient(135deg, rgba(255, 250, 244, 0.96), rgba(252, 248, 241, 0.88)),
+                linear-gradient(135deg, rgba(181, 106, 45, 0.05), rgba(93, 128, 111, 0.05));
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(181, 106, 45, 0.14);
+            color: var(--accent);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+        }
+
+        h1 {
+            margin: 12px 0 6px;
+            font-size: clamp(28px, 4.2vw, 40px);
+            line-height: 1.08;
+            letter-spacing: -0.04em;
+        }
+
+        .hero p {
+            margin: 0;
+            max-width: 780px;
+            color: var(--muted);
+        }
+
+        .tabs {
+            display: inline-flex;
+            gap: 8px;
+            margin-top: 18px;
+            padding: 8px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.95);
+        }
+
+        .tab {
+            border: 0;
+            background: transparent;
+            color: #7a5a3e;
+            padding: 10px 18px;
+            border-radius: 12px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.16s ease;
+        }
+
+        .tab:hover {
+            background: var(--accent-soft);
+        }
+
+        .tab.active {
+            color: #fff;
+            background: linear-gradient(135deg, #bb7335, #93562f);
+            box-shadow: 0 10px 24px rgba(147, 86, 47, 0.22);
+        }
+
+        .content {
+            padding: 18px;
+        }
+
+        .platform-panel {
+            display: none;
+        }
+
+        .platform-panel.active {
+            display: block;
+        }
+
+        .quick-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .quick-nav a {
+            display: inline-flex;
+            align-items: center;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            color: #715338;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .quick-nav a:hover {
+            border-color: var(--line-strong);
+            background: #fff;
+        }
+
+        .sections-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .section-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 16px;
+        }
+
+        .section-card.full {
+            grid-column: 1 / -1;
+        }
+
+        .section-card h2,
+        .section-card h3 {
+            margin: 0 0 10px;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+        }
+
+        .section-card h2 {
+            font-size: 20px;
+        }
+
+        .section-card h3 {
+            font-size: 16px;
+        }
+
+        .section-note {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        li+li {
+            margin-top: 6px;
+        }
+
+        .empty {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .status {
+            margin: 0;
+            color: var(--muted);
+        }
+
+        .status.error {
+            color: #9b3b2e;
+        }
+
+        .section-card p {
+            margin: 0 0 8px;
+        }
+
+        .section-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .section-card ul ul {
+            margin-top: 6px;
+        }
+
+        .section-card code {
+            font-size: 12px;
+            padding: 1px 5px;
+            border-radius: 6px;
+            background: var(--panel-soft);
+        }
+
+        .hero .updated {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .tabs.hidden,
+        .content.hidden {
+            display: none;
+        }
+
+        .footer {
+            padding: 0 18px 18px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        @media (max-width: 860px) {
+            body {
+                padding: 10px;
+            }
+
+            .hero {
+                padding: 18px 16px 16px;
+            }
+
+            .content {
+                padding: 14px;
+            }
+
+            .sections-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                width: 100%;
+            }
+
+            .tab {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <header class="hero">
+            <span class="eyebrow">SOFTWARE PICKS</span>
+            <h1>软件推荐</h1>
+            <p>内容来自笔记，这里只做展示。顶部按一级标题切换平台，分类来自二级标题。</p>
+            <p class="updated" id="updated" hidden></p>
+            <div class="tabs hidden" id="tabs" role="tablist" aria-label="平台切换"></div>
+        </header>
+
+        <main class="content">
+            <p class="status" id="status">正在加载清单…</p>
+            <div id="catalog"></div>
+        </main>
+        <p class="footer">清单在 MyNote「软件推荐」里用 Markdown 维护，本页只读渲染。</p>
+    </div>
+
+    <script>
+        function softwareApiUrl() {
+            const params = new URLSearchParams(location.search);
+            const fromQuery = params.get("api");
+            if (fromQuery) return fromQuery;
+            if (window.SOFTWARE_API) return window.SOFTWARE_API;
+            const { protocol, hostname, port } = location;
+            if (port === "3001" || port === "5173") return "/api/public/software";
+            return protocol + "//" + hostname + ":3001/api/public/software";
+        }
+
+        function escapeHtml(s) {
+            return String(s)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function renderInline(s) {
+            let out = escapeHtml(s);
+            out = out.replace(
+                /\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
+                '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+            );
+            out = out.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+            out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
+            return out;
+        }
+
+        function renderMarkdown(md) {
+            const lines = String(md || "").split("\n");
+            const html = [];
+            let depth = 0;
+
+            function closeTo(n) {
+                while (depth > n) {
+                    html.push("</ul>");
+                    depth -= 1;
+                }
+            }
+
+            for (const raw of lines) {
+                const m = raw.match(/^(\s*)-\s+(.*)$/);
+                if (m) {
+                    const next = Math.floor(m[1].replace(/\t/g, "  ").length / 2) + 1;
+                    if (next > depth) {
+                        while (depth < next) {
+                            html.push("<ul>");
+                            depth += 1;
+                        }
+                    } else {
+                        closeTo(next);
+                    }
+                    html.push("<li>" + renderInline(m[2]) + "</li>");
+                    continue;
+                }
+                if (!raw.trim()) {
+                    closeTo(0);
+                    continue;
+                }
+                closeTo(0);
+                html.push("<p>" + renderInline(raw) + "</p>");
+            }
+            closeTo(0);
+            return html.join("");
+        }
+
+        function slug(text) {
+            return String(text)
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, "-")
+                .replace(/[^\w\u4e00-\u9fff-]+/g, "")
+                .slice(0, 40) || "sec";
+        }
+
+        function parseCatalog(md) {
+            const platforms = [];
+            let platform = null;
+            let section = null;
+            const buf = [];
+
+            function flushSection() {
+                if (!section || !platform) {
+                    buf.length = 0;
+                    return;
+                }
+                section.body = buf.join("\n").trim();
+                buf.length = 0;
+            }
+
+            const lines = String(md || "").replace(/\r\n/g, "\n").split("\n");
+            for (const line of lines) {
+                const h1 = line.match(/^#\s+(.+?)\s*$/);
+                const h2 = line.match(/^##\s+(.+?)\s*$/);
+                if (h1) {
+                    flushSection();
+                    section = null;
+                    platform = { title: h1[1].trim(), key: slug(h1[1]), sections: [] };
+                    platforms.push(platform);
+                    continue;
+                }
+                if (h2) {
+                    flushSection();
+                    if (!platform) {
+                        platform = { title: "清单", key: "list", sections: [] };
+                        platforms.push(platform);
+                    }
+                    const title = h2[1].trim();
+                    section = {
+                        title,
+                        id: platform.key + "-" + slug(title),
+                        body: "",
+                    };
+                    platform.sections.push(section);
+                    continue;
+                }
+                if (!platform) {
+                    platform = { title: "清单", key: "list", sections: [] };
+                    platforms.push(platform);
+                }
+                if (!section) {
+                    section = { title: "", id: platform.key + "-intro", body: "" };
+                    platform.sections.push(section);
+                }
+                buf.push(line);
+            }
+            flushSection();
+            return platforms.filter((p) => p.sections.some((s) => s.title || s.body));
+        }
+
+        function switchPanel(name) {
+            document.querySelectorAll(".tab").forEach((tab) => {
+                const active = tab.dataset.tab === name;
+                tab.classList.toggle("active", active);
+                tab.setAttribute("aria-selected", String(active));
+            });
+            document.querySelectorAll(".platform-panel").forEach((panel) => {
+                panel.classList.toggle("active", panel.dataset.panel === name);
+            });
+        }
+
+        function renderCatalog(platforms) {
+            const tabs = document.getElementById("tabs");
+            const catalog = document.getElementById("catalog");
+            tabs.innerHTML = "";
+            catalog.innerHTML = "";
+
+            platforms.forEach((platform, index) => {
+                const tab = document.createElement("button");
+                tab.className = "tab" + (index === 0 ? " active" : "");
+                tab.type = "button";
+                tab.dataset.tab = platform.key;
+                tab.setAttribute("aria-selected", index === 0 ? "true" : "false");
+                tab.textContent = platform.title;
+                tab.addEventListener("click", () => switchPanel(platform.key));
+                tabs.appendChild(tab);
+
+                const panel = document.createElement("section");
+                panel.className = "platform-panel" + (index === 0 ? " active" : "");
+                panel.dataset.panel = platform.key;
+
+                const nav = document.createElement("nav");
+                nav.className = "quick-nav";
+                const grid = document.createElement("div");
+                grid.className = "sections-grid";
+
+                platform.sections.forEach((section) => {
+                    if (section.title) {
+                        const link = document.createElement("a");
+                        link.href = "#" + section.id;
+                        link.textContent = section.title;
+                        nav.appendChild(link);
+                    }
+
+                    const card = document.createElement("section");
+                    const long = (section.body || "").split("\n").filter((l) => l.trim()).length > 16;
+                    card.className = "section-card" + (long || !section.title ? " full" : "");
+                    if (section.title) {
+                        const h = document.createElement("h2");
+                        h.id = section.id;
+                        h.textContent = section.title;
+                        card.appendChild(h);
+                    }
+                    if (section.body) {
+                        card.insertAdjacentHTML("beforeend", renderMarkdown(section.body));
+                    } else {
+                        const empty = document.createElement("p");
+                        empty.className = "empty";
+                        empty.textContent = "暂无条目";
+                        card.appendChild(empty);
+                    }
+                    grid.appendChild(card);
+                });
+
+                if (nav.childElementCount) panel.appendChild(nav);
+                panel.appendChild(grid);
+                catalog.appendChild(panel);
+            });
+
+            tabs.classList.toggle("hidden", platforms.length < 2);
+        }
+
+        function formatUpdated(raw) {
+            if (!raw) return "";
+            const date = new Date(raw.includes("T") ? raw : raw.replace(" ", "T") + "Z");
+            if (Number.isNaN(date.getTime())) return "";
+            return "更新于 " + date.toLocaleString("zh-CN");
+        }
+
+        async function load() {
+            const status = document.getElementById("status");
+            const updated = document.getElementById("updated");
+            const api = softwareApiUrl();
+            try {
+                const res = await fetch(api, { cache: "no-store" });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(data.error || "接口返回 " + res.status);
+                }
+                const platforms = parseCatalog(data.content || "");
+                if (!platforms.length) {
+                    status.textContent = "清单还是空的，先到 MyNote 左侧「软件推荐」写一篇 Markdown。";
+                    return;
+                }
+                status.hidden = true;
+                renderCatalog(platforms);
+                const label = formatUpdated(data.updatedAt);
+                if (label) {
+                    updated.hidden = false;
+                    updated.textContent = label;
+                }
+            } catch (e) {
+                status.classList.add("error");
+                status.textContent =
+                    "读不到清单（" +
+                    (e && e.message ? e.message : "网络错误") +
+                    "）。确认 MyNote 已启动，或用 ?api=完整地址 指定公开接口。当前请求：" +
+                    api;
+            }
+        }
+
+        load();
+    </script>
+</body>
+
+</html>

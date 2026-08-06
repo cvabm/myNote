@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import {
+  AppWindow,
   BookMarked,
   GitBranch,
   LogOut,
@@ -93,6 +94,14 @@ export function Sidebar({
         >
           <MessageCircle className="h-4 w-4" />
           说说
+        </button>
+        <button
+          type="button"
+          className={clsx('sidebar-item', filter.type === 'software' && 'sidebar-item-active')}
+          onClick={() => selectFilter({ type: 'software' })}
+        >
+          <AppWindow className="h-4 w-4" />
+          软件推荐
         </button>
         <button
           type="button"

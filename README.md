@@ -14,6 +14,7 @@
 | Markdown 编辑 | 预览 / 编辑 / 分栏，自动保存 |
 | 图片 | 工具栏上传、粘贴、拖拽；预览可删除（正文+文件）；存于 `data/uploads` |
 | 说说 | 类似 QQ 空间 / 推特的短动态：文字 + 最多 9 图、编辑删除、正文搜索 |
+| 软件推荐 | 侧栏独立入口，Markdown 编辑；`GET /api/public/software` 免登录给工具站对外渲染 |
 | 思维导图 | 按笔记本层级展开的思维导图；点击折叠/展开，点笔记打开编辑 |
 | 回收站 | 软删除、恢复、永久删除、清空 |
 | 全文搜索 | 即时搜索、关键字高亮（SQLite FTS5） |
@@ -106,6 +107,8 @@ myNote/
 | CRUD | `/api/graph/edges` | 手动连线（wiki/系统边由同步生成） |
 | POST | `/api/uploads` | 上传图片（需登录） |
 | GET | `/uploads/*` | 访问已上传图片 |
+| GET / PUT | `/api/software` | 软件推荐 Markdown（需登录） |
+| GET | `/api/public/software` | 软件推荐公开只读（免登录，给工具站渲染） |
 | GET | `/api/health` | 健康检查 |
 
 ## 从 Flatnotes / Markdown 导入

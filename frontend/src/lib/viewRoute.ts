@@ -30,6 +30,8 @@ export function readViewRoute(search = window.location.search): ViewRouteState {
         filter: q ? { type: 'moments', q } : { type: 'moments' },
         selectedId: null,
       };
+    case 'software':
+      return { filter: { type: 'software' }, selectedId: null };
     case 'globe':
     case 'mindmap':
     case 'all':
@@ -57,6 +59,9 @@ export function writeViewRoute(
     case 'moments':
       params.set('v', 'moments');
       if (filter.q?.trim()) params.set('q', filter.q.trim());
+      break;
+    case 'software':
+      params.set('v', 'software');
       break;
     case 'globe':
     case 'mindmap':

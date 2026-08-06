@@ -9,6 +9,7 @@ import type {
   NoteListItem,
   Notebook,
   PageResult,
+  SoftwarePage,
   User,
 } from './types';
 
@@ -201,6 +202,16 @@ export const api = {
   },
   deleteGraphEdge(id: string) {
     return request<{ ok: boolean }>(`/api/graph/edges/${id}`, { method: 'DELETE' });
+  },
+
+  getSoftware() {
+    return request<SoftwarePage>('/api/software');
+  },
+  saveSoftware(content: string) {
+    return request<SoftwarePage>('/api/software', {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
   },
 
   /** 上传笔记图片，返回可写入 Markdown 的 url */

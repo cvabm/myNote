@@ -15,6 +15,7 @@ import { noteRoutes } from './routes/notes.js';
 import { graphRoutes } from './routes/graph.js';
 import { mindmapRoutes } from './routes/mindmap.js';
 import { uploadRoutes } from './routes/uploads.js';
+import { publicSoftwareRoutes, softwareRoutes } from './routes/software.js';
 
 const PORT = Number(process.env.PORT || 3001);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -44,6 +45,8 @@ app.route('/api/moments', momentRoutes);
 app.route('/api/graph', graphRoutes);
 app.route('/api/mindmap', mindmapRoutes);
 app.route('/api/uploads', uploadRoutes);
+app.route('/api/software', softwareRoutes);
+app.route('/api/public/software', publicSoftwareRoutes);
 
 // 笔记图片（文件名随机，GET 无需登录以便 Markdown 预览）
 app.get('/uploads/*', (c) => {

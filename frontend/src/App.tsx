@@ -8,6 +8,7 @@ import { NoteEditor } from './components/NoteEditor';
 import { MomentsFeed } from './components/MomentsFeed';
 import { MindMap } from './components/MindMap';
 import { SettingsModal } from './components/SettingsModal';
+import { SoftwarePage } from './components/SoftwarePage';
 import { readViewRoute, writeViewRoute } from './lib/viewRoute';
 import type { Note, NoteListItem, ViewFilter } from './types';
 
@@ -70,6 +71,7 @@ export default function App() {
   const skipNextUrlWrite = useRef(false);
 
   const isMoments = filter.type === 'moments';
+  const isSoftware = filter.type === 'software';
   const isTrash = filter.type === 'trash';
   const isMindmap = filter.type === 'mindmap' || filter.type === 'globe' || filter.type === 'all';
   const momentsQuery = filter.type === 'moments' ? filter.q || '' : '';
@@ -140,11 +142,11 @@ export default function App() {
     writeViewRoute(
       {
         filter: isMindmap ? { type: 'mindmap' } : filter,
-        selectedId: isMoments ? null : selectedId,
+        selectedId: isMoments || isSoftware ? null : selectedId,
       },
       'replace'
     );
-  }, [user, filter, selectedId, isMoments, isMindmap]);
+  }, [user, filter, selectedId, isMoments, isSoftware, isMindmap]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -160,7 +162,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!selectedId || !user || isMoments) {
+    if (!selectedId || !user || isMoments || isSoftware) {
       setCurrent(null);
       return;
     }
@@ -179,7 +181,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId, user, isMoments]);
+  }, [selectedId, user, isMoments, isSoftware]);
 
   const flushSave = useCallback(async () => {
     if (!selectedId) return;
@@ -360,7 +362,9 @@ export default function App() {
       />
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        {isMoments ? (
+        {isSoftware ? (
+          <SoftwarePage onOpenSidebar={() => setSidebarOpen(true)} />
+        ) : isMoments ? (
           <MomentsFeed
             username={user.displayName || user.username}
             searchQuery={momentsQuery}
