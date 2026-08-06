@@ -63,6 +63,8 @@ export default function App() {
   const [searching, setSearching] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPatch = useRef<Record<string, unknown>>({});
+  /** 防止并发 PATCH 乱序回写；请求进行中时新的改动只进 pending */
+  const saveInFlight = useRef(false);
   const searchSeq = useRef(0);
   const notesLoadingMoreRef = useRef(false);
   const skipNextUrlWrite = useRef(false);
@@ -181,20 +183,68 @@ export default function App() {
 
   const flushSave = useCallback(async () => {
     if (!selectedId) return;
+    if (saveInFlight.current) return;
     const patch = pendingPatch.current;
     if (Object.keys(patch).length === 0) return;
     pendingPatch.current = {};
+    saveInFlight.current = true;
     setSaving(true);
+    let ok = false;
     try {
-      const updated = await api.updateNote(selectedId, patch as Parameters<typeof api.updateNote>[1]);
-      setCurrent(updated);
-      const item = toListItem(updated);
-      setNotes((prev) => prev.map((n) => (n.id === item.id ? { ...n, ...item } : n)));
+      const updated = await api.updateNote(
+        selectedId,
+        patch as Parameters<typeof api.updateNote>[1]
+      );
+      ok = true;
+      // 编辑中以本地 title/content 为准，避免保存回写把受控 textarea 光标甩到末尾，
+      // 也避免请求进行期间的新输入被服务端旧快照覆盖。
+      setCurrent((prev) => {
+        if (!prev || prev.id !== updated.id) return prev;
+        return {
+          ...prev,
+          updatedAt: updated.updatedAt,
+          deletedAt: updated.deletedAt,
+          notebookId: updated.notebookId,
+          sortOrder: updated.sortOrder,
+        };
+      });
+      // 列表预览：若请求期间又有本地改动，用本地字段；否则用本次已落库结果
+      setNotes((prev) =>
+        prev.map((n) => {
+          if (n.id !== updated.id) return n;
+          const pending = pendingPatch.current;
+          const title =
+            typeof pending.title === 'string'
+              ? pending.title
+              : typeof patch.title === 'string'
+                ? patch.title
+                : updated.title;
+          const body =
+            typeof pending.content === 'string'
+              ? pending.content
+              : typeof patch.content === 'string'
+                ? patch.content
+                : updated.content;
+          return {
+            ...n,
+            ...toListItem(updated),
+            title,
+            preview: (body || '').slice(0, 160).replace(/\s+/g, ' ').trim(),
+          };
+        })
+      );
     } catch (e) {
       console.error(e);
+      // 失败时把本次 patch 合回 pending，避免静默丢字；下次输入 debounce 或关闭前 flush 会重试
+      pendingPatch.current = { ...patch, ...pendingPatch.current };
       alert(e instanceof Error ? e.message : '保存失败');
     } finally {
+      saveInFlight.current = false;
       setSaving(false);
+    }
+    // 仅成功后再刷：请求期间积压的新改动立刻落库（失败不自动连打，避免死循环）
+    if (ok && Object.keys(pendingPatch.current).length > 0) {
+      void flushSave();
     }
   }, [selectedId]);
 
@@ -216,11 +266,13 @@ export default function App() {
   }, []);
 
   function handleNoteChange(patch: { title?: string; content?: string }) {
-    if (!current) return;
-    setCurrent({
-      ...current,
-      title: patch.title ?? current.title,
-      content: patch.content ?? current.content,
+    setCurrent((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        title: patch.title ?? prev.title,
+        content: patch.content ?? prev.content,
+      };
     });
     const apiPatch: Record<string, unknown> = {};
     if (patch.title !== undefined) apiPatch.title = patch.title;
