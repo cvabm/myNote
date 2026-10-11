@@ -23,6 +23,7 @@ import { api } from '../api';
 import { highlightHtmlKeywords, renderMarkdown } from '../lib/markdown';
 import type { MindNode, Note } from '../types';
 import { handleCodeCopyClick, highlightText } from '../utils';
+import { BrowseModeSwitch, type BrowseMode } from './BrowseModeSwitch';
 
 type Props = {
   onOpenSidebar?: () => void;
@@ -33,6 +34,7 @@ type Props = {
    * 避免拦截 Ctrl+F 等快捷键，让出浏览器原生查找。
    */
   active?: boolean;
+  onBrowseMode?: (mode: BrowseMode) => void;
 };
 
 type CtxMenu = {
@@ -73,6 +75,10 @@ const MIN_READABLE_K = 0.78;
 const FOCUS_MAX_K = 1.2;
 /** 默认缩放略小，四周留白（仅「适应全图」用） */
 const FIT_SCALE = 0.62;
+/** 手机宽度不够，整图塞进屏幕会把字缩得太小 */
+const MOBILE_FIT_SCALE = 1.15;
+const MOBILE_MIN_K = 1.05;
+const MOBILE_MAX_FIT_K = 1.45;
 
 const NODE_H_ROOT = 36;
 const NODE_H_NB = 30;
@@ -420,7 +426,7 @@ function clearShadow(ctx: CanvasRenderingContext2D) {
   ctx.shadowOffsetY = 0;
 }
 
-export function MindMap({ onOpenSidebar, onOpenNote, active = true }: Props) {
+export function MindMap({ onOpenSidebar, onOpenNote, active = true, onBrowseMode }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [root, setRoot] = useState<MindNode | null>(null);
@@ -897,7 +903,7 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true }: Props) {
                 ...c,
                 x: item.x,
                 y: item.y,
-                k: Math.max(c.k, MIN_READABLE_K),
+                k: Math.max(c.k, sizeRef.current.w > 0 && sizeRef.current.w < 768 ? MOBILE_MIN_K : MIN_READABLE_K),
               }));
             }
           });
@@ -1047,7 +1053,7 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true }: Props) {
       ...c,
       x: item.x,
       y: item.y,
-      k: Math.max(c.k, MIN_READABLE_K),
+      k: Math.max(c.k, sizeRef.current.w > 0 && sizeRef.current.w < 768 ? MOBILE_MIN_K : MIN_READABLE_K),
     }));
     setSelectedId(nodeId);
   }, []);
@@ -1092,8 +1098,11 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true }: Props) {
       const bh = Math.max(maxY - minY, 48) + pad * 2;
       const { w, h } = sizeRef.current;
       const fitK = Math.min(w / bw, h / bh) * 0.9;
+      const narrow = w > 0 && w < 768;
+      const minReadable = narrow ? MOBILE_MIN_K : MIN_READABLE_K;
+      const focusMax = narrow ? 1.6 : FOCUS_MAX_K;
       // 局部框选：可读优先；分支很大时也不掉到全图那种过小比例
-      const k = Math.min(FOCUS_MAX_K, Math.max(MIN_READABLE_K, Math.min(MAX_K, fitK)));
+      const k = Math.min(focusMax, Math.max(minReadable, Math.min(MAX_K, fitK)));
       setCam({
         x: (minX + maxX) / 2,
         y: (minY + maxY) / 2,
@@ -1182,7 +1191,8 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true }: Props) {
   const fitView = useCallback(() => {
     const items = laidRef.current;
     if (!items.length) {
-      setCam({ x: 0, y: 0, k: 0.6 });
+      const narrow = sizeRef.current.w > 0 && sizeRef.current.w < 768;
+      setCam({ x: 0, y: 0, k: narrow ? MOBILE_MIN_K : 0.6 });
       return;
     }
     let minX = Infinity,
@@ -1199,7 +1209,11 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true }: Props) {
     const bw = Math.max(maxX - minX, 100) + pad * 2;
     const bh = Math.max(maxY - minY, 80) + pad * 2;
     const { w, h } = sizeRef.current;
-    const k = Math.min(MAX_K, Math.max(MIN_K, Math.min(w / bw, h / bh) * FIT_SCALE));
+    const narrow = w > 0 && w < 768;
+    const fitScale = narrow ? MOBILE_FIT_SCALE : FIT_SCALE;
+    const minK = narrow ? MOBILE_MIN_K : MIN_K;
+    const maxFit = narrow ? MOBILE_MAX_FIT_K : MAX_K;
+    const k = Math.min(maxFit, Math.max(minK, Math.min(w / bw, h / bh) * fitScale));
     setCam({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, k });
   }, []);
 
@@ -1698,6 +1712,7 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true }: Props) {
               : status || (selected ? selected.title : '右键编辑 · Ctrl+F 搜索')}
           </div>
         </div>
+        {onBrowseMode && <BrowseModeSwitch mode="mindmap" onChange={onBrowseMode} />}
 
         {/* 编辑操作（对应当前选中节点） */}
         <div className="flex shrink-0 items-center gap-0.5 border-r border-slate-100 pr-1 dark:border-slate-800">

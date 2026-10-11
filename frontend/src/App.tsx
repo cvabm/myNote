@@ -7,6 +7,7 @@ import { NoteList } from './components/NoteList';
 import { NoteEditor } from './components/NoteEditor';
 import { MomentsFeed } from './components/MomentsFeed';
 import { MindMap } from './components/MindMap';
+import { NoteCatalog } from './components/NoteCatalog';
 import { SettingsModal } from './components/SettingsModal';
 import { SoftwarePage } from './components/SoftwarePage';
 import { readViewRoute, writeViewRoute } from './lib/viewRoute';
@@ -14,22 +15,18 @@ import type { Note, NoteListItem, ViewFilter } from './types';
 
 const NOTES_PAGE_SIZE = 30;
 
-/** 默认思维导图；旧 all/search/notebook 回退到 mindmap */
+/** 默认目录；旧全部笔记 / 搜索 / 笔记本回退到目录，globe 仍视为导图 */
 function normalizeFilter(f: ViewFilter): ViewFilter {
-  if (
-    f.type === 'all' ||
-    f.type === 'search' ||
-    f.type === 'notebook' ||
-    f.type === 'globe'
-  ) {
-    return { type: 'mindmap' };
+  if (f.type === 'globe') return { type: 'mindmap' };
+  if (f.type === 'all' || f.type === 'search' || f.type === 'notebook') {
+    return { type: 'catalog' };
   }
   return f;
 }
 
 function getInitialRoute() {
   if (typeof window === 'undefined') {
-    return { filter: { type: 'mindmap' as const }, selectedId: null as string | null };
+    return { filter: { type: 'catalog' as const }, selectedId: null as string | null };
   }
   const r = readViewRoute();
   return { filter: normalizeFilter(r.filter), selectedId: r.selectedId };
@@ -61,6 +58,7 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [catalogReload, setCatalogReload] = useState(0);
   const [searching, setSearching] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPatch = useRef<Record<string, unknown>>({});
@@ -73,7 +71,8 @@ export default function App() {
   const isMoments = filter.type === 'moments';
   const isSoftware = filter.type === 'software';
   const isTrash = filter.type === 'trash';
-  const isMindmap = filter.type === 'mindmap' || filter.type === 'globe' || filter.type === 'all';
+  const isMindmap = filter.type === 'mindmap' || filter.type === 'globe';
+  const isCatalog = filter.type === 'catalog';
   const momentsQuery = filter.type === 'moments' ? filter.q || '' : '';
 
   /** 仅回收站用列表 */
@@ -293,6 +292,7 @@ export default function App() {
     setNotes((prev) => prev.filter((n) => n.id !== selectedId));
     setSelectedId(null);
     setCurrent(null);
+    setCatalogReload((n) => n + 1);
   }
 
   async function handleRestore() {
@@ -301,6 +301,7 @@ export default function App() {
     setNotes((prev) => prev.filter((n) => n.id !== selectedId));
     setSelectedId(null);
     setCurrent(null);
+    setCatalogReload((n) => n + 1);
   }
 
   async function handleDeleteForever() {
@@ -310,6 +311,7 @@ export default function App() {
     setNotes((prev) => prev.filter((n) => n.id !== selectedId));
     setSelectedId(null);
     setCurrent(null);
+    setCatalogReload((n) => n + 1);
   }
 
   async function handleEmptyTrash() {
@@ -331,7 +333,30 @@ export default function App() {
 
   if (!user) return <LoginPage />;
 
-  const mobileShowEditor = isTrash && !!selectedId;
+  const mobileShowEditor = (isTrash || isCatalog) && !!selectedId;
+
+  function switchBrowseMode(mode: 'catalog' | 'mindmap') {
+    setOpenInEditMode(false);
+    setSelectedId(null);
+    setCurrent(null);
+    setFilter({ type: mode });
+    setSidebarOpen(false);
+  }
+
+  async function createCatalogNote(notebookId: string | null) {
+    try {
+      const note = await api.createNote({
+        title: '未命名笔记',
+        notebookId,
+      });
+      setCatalogReload((n) => n + 1);
+      setOpenInEditMode(true);
+      setSelectedId(note.id);
+      setSidebarOpen(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '新建失败');
+    }
+  }
 
   return (
     <div className="relative flex h-full min-h-0 overflow-hidden bg-surface-50 dark:bg-surface-950">
@@ -419,6 +444,46 @@ export default function App() {
               </div>
             )}
           </>
+        ) : isCatalog ? (
+          <>
+            <NoteCatalog
+              selectedId={selectedId}
+              selectedTitle={current?.title}
+              reloadToken={catalogReload}
+              mobileHidden={mobileShowEditor}
+              onOpenSidebar={() => setSidebarOpen(true)}
+              onBrowseMode={switchBrowseMode}
+              onSelect={(id) => {
+                setOpenInEditMode(false);
+                setSelectedId(id);
+                setSidebarOpen(false);
+              }}
+              onCreateNote={createCatalogNote}
+            />
+            {selectedId && current ? (
+              <NoteEditor
+                note={current}
+                saving={saving}
+                onChange={handleNoteChange}
+                onTrash={handleTrash}
+                onRestore={handleRestore}
+                onDeleteForever={handleDeleteForever}
+                onClose={() => {
+                  setOpenInEditMode(false);
+                  setSelectedId(null);
+                }}
+                initialEditorMode={openInEditMode ? 'split' : 'preview'}
+              />
+            ) : selectedId ? (
+              <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white text-sm text-slate-400 dark:bg-slate-950">
+                加载笔记…
+              </div>
+            ) : (
+              <div className="hidden h-full min-w-0 flex-1 flex-col items-center justify-center bg-white text-slate-400 dark:bg-slate-950 md:flex">
+                <p className="px-6 text-center text-sm">从左侧目录选择一篇笔记</p>
+              </div>
+            )}
+          </>
         ) : (
           // 导图始终挂载，进编辑只隐藏，返回时保留展开/缩放/定位
           <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -433,6 +498,7 @@ export default function App() {
               <MindMap
                 active={!selectedId}
                 onOpenSidebar={() => setSidebarOpen(true)}
+                onBrowseMode={switchBrowseMode}
                 onOpenNote={(noteId) => {
                   setOpenInEditMode(true);
                   setSelectedId(noteId);

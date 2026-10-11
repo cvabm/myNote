@@ -44,8 +44,8 @@ export function NoteEditor({
           type="button"
           className="btn-ghost shrink-0 !px-2 !py-2"
           onClick={onClose}
-          title="返回思维导图"
-          aria-label="返回思维导图"
+          title="返回"
+          aria-label="返回"
         >
           <ArrowLeft className="h-5 w-5" />
           <span className="hidden text-sm sm:inline">返回</span>

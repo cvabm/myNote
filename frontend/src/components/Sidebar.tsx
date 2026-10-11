@@ -3,6 +3,7 @@ import {
   AppWindow,
   BookMarked,
   GitBranch,
+  ListTree,
   LogOut,
   MessageCircle,
   Trash2,
@@ -73,14 +74,17 @@ export function Sidebar({
         </div>
         <button
           type="button"
+          className={clsx('sidebar-item', filter.type === 'catalog' && 'sidebar-item-active')}
+          onClick={() => selectFilter({ type: 'catalog' })}
+        >
+          <ListTree className="h-4 w-4" />
+          笔记
+        </button>
+        <button
+          type="button"
           className={clsx(
             'sidebar-item',
-            (filter.type === 'mindmap' ||
-              filter.type === 'globe' ||
-              filter.type === 'all' ||
-              filter.type === 'notebook' ||
-              filter.type === 'search') &&
-              'sidebar-item-active'
+            (filter.type === 'mindmap' || filter.type === 'globe') && 'sidebar-item-active'
           )}
           onClick={() => selectFilter({ type: 'mindmap' })}
         >

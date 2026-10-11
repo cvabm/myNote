@@ -66,6 +66,8 @@ export type ViewFilter =
   | { type: 'search'; q: string }
   /** 说说；可选 q 为正文搜索关键字 */
   | { type: 'moments'; q?: string }
+  /** 目录：按笔记本层级列出笔记 */
+  | { type: 'catalog' }
   /** 思维导图（分类节点 + 笔记叶子） */
   | { type: 'mindmap' }
   /** @deprecated 兼容旧链接 ?v=globe */

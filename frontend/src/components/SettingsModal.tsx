@@ -250,7 +250,7 @@ export function SettingsModal({ open, onClose, onImported }: Props) {
               导入 Markdown
             </h3>
             <p className="mb-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-              从 Flatnotes 或其它应用导出的 .md 导入。文件将作为全局笔记导入（无笔记本）；可在思维导图中浏览。
+              从 Flatnotes 或其它应用导出的 .md 导入。文件将作为全局笔记导入（无笔记本）；可在目录或思维导图中浏览。
             </p>
 
             <div className="mb-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">

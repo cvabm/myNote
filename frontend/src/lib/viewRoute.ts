@@ -19,7 +19,7 @@ function safeDecode(v: string | null): string {
 export function readViewRoute(search = window.location.search): ViewRouteState {
   const params = new URLSearchParams(search);
   const note = params.get('note')?.trim() || null;
-  const v = (params.get('v') || 'mindmap').trim();
+  const v = (params.get('v') || 'catalog').trim();
   const q = safeDecode(params.get('q')).trim();
 
   switch (v) {
@@ -32,15 +32,17 @@ export function readViewRoute(search = window.location.search): ViewRouteState {
       };
     case 'software':
       return { filter: { type: 'software' }, selectedId: null };
-    case 'globe':
     case 'mindmap':
+    case 'globe':
+      return { filter: { type: 'mindmap' }, selectedId: note };
+    case 'catalog':
+    case 'notes':
     case 'all':
     case 'search':
     case 'notebook':
     case 'favorite':
     default:
-      // 默认 / 旧全部笔记、搜索、笔记本等 → 思维导图
-      return { filter: { type: 'mindmap' }, selectedId: note };
+      return { filter: { type: 'catalog' }, selectedId: note };
   }
 }
 
@@ -63,13 +65,15 @@ export function writeViewRoute(
     case 'software':
       params.set('v', 'software');
       break;
-    case 'globe':
     case 'mindmap':
+    case 'globe':
+      params.set('v', 'mindmap');
+      break;
+    case 'catalog':
     case 'all':
     case 'search':
     case 'notebook':
     default:
-      params.set('v', 'mindmap');
       break;
   }
 
