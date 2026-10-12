@@ -30,6 +30,15 @@ export type LoginSession = {
   deviceMemory?: number | null;
 };
 
+export type Book = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  noteCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Notebook = {
   id: string;
   parentId: string | null;

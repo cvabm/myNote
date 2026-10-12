@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import {
+  BookPlus,
   ChevronDown,
   ChevronRight,
   CornerUpLeft,
@@ -12,11 +13,13 @@ import {
   FolderPlus,
   Loader2,
   Menu,
+  Pencil,
   Search,
+  Trash2,
   X,
 } from 'lucide-react';
 import { api } from '../api';
-import type { MindNode, NoteListItem } from '../types';
+import type { Book, MindNode, NoteListItem } from '../types';
 import { BrowseModeSwitch, type BrowseMode } from './BrowseModeSwitch';
 
 type Props = {
@@ -24,6 +27,8 @@ type Props = {
   selectedTitle?: string | null;
   onSelect: (id: string) => void;
   onCreateNote: (notebookId: string | null) => Promise<void>;
+  bookId: string;
+  onBookChange: (id: string) => void;
   onOpenSidebar?: () => void;
   onBrowseMode: (mode: BrowseMode) => void;
   mobileHidden?: boolean;
@@ -79,38 +84,57 @@ export function NoteCatalog({
   selectedTitle,
   onSelect,
   onCreateNote,
+  bookId,
+  onBookChange,
   onOpenSidebar,
   onBrowseMode,
   mobileHidden,
   reloadToken = 0,
 }: Props) {
   const [root, setRoot] = useState<MindNode | null>(null);
-  const [noteCount, setNoteCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [contentHits, setContentHits] = useState<Map<string, string>>(new Map());
   const [searchLoading, setSearchLoading] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [creating, setCreating] = useState<'note' | 'dir' | null>(null);
+  const [creating, setCreating] = useState<'note' | 'dir' | 'book' | null>(null);
+  const [books, setBooks] = useState<Book[]>([]);
   const [moveTarget, setMoveTarget] = useState<MindNode | null>(null);
   const [moveFilter, setMoveFilter] = useState('');
   const [moving, setMoving] = useState(false);
   const searchSeq = useRef(0);
 
+  const loadBooks = useCallback(async () => {
+    const list = await api.listBooks();
+    setBooks(list);
+    if (!bookId || !list.some((book) => book.id === bookId)) {
+      if (list[0]) onBookChange(list[0].id);
+    }
+  }, [bookId, onBookChange]);
+
   const load = useCallback(async (silent = false) => {
+    if (!bookId) {
+      setLoading(false);
+      return;
+    }
     if (!silent) setLoading(true);
     setError('');
     try {
-      const data = await api.getMindmap();
+      const data = await api.getMindmap(bookId);
       setRoot(data.root);
-      setNoteCount(data.noteCount);
     } catch (e) {
       setError(e instanceof Error ? e.message : '目录加载失败');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [bookId]);
+
+  useEffect(() => {
+    void loadBooks().catch((e) => {
+      setError(e instanceof Error ? e.message : '笔记本加载失败');
+    });
+  }, [loadBooks]);
 
   useEffect(() => {
     void load(reloadToken > 0);
@@ -195,6 +219,54 @@ export function NoteCatalog({
     }
   }
 
+  async function createBook() {
+    if (creating || moving) return;
+    const title = window.prompt('笔记本名称', '新笔记本');
+    if (title == null) return;
+    const name = title.trim() || '新笔记本';
+    setCreating('book');
+    try {
+      const book = await api.createBook({ name });
+      onBookChange(book.id);
+      await loadBooks();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '新建笔记本失败');
+    } finally {
+      setCreating(null);
+    }
+  }
+
+  async function renameBook(book: Book) {
+    if (creating || moving) return;
+    const title = window.prompt('笔记本名称', book.name);
+    if (title == null) return;
+    const name = title.trim();
+    if (!name || name === book.name) return;
+    try {
+      await api.updateBook(book.id, { name });
+      await loadBooks();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '重命名失败');
+    }
+  }
+
+  async function deleteBook(book: Book) {
+    if (creating || moving) return;
+    if (
+      !window.confirm(
+        `删除笔记本「${book.name}」？\n其中的笔记会进入回收站，里面的目录也会一并删除。`
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.deleteBook(book.id);
+      await loadBooks();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '删除笔记本失败');
+    }
+  }
+
   async function createDirectory(parentId: string | null, parentMindId: string | null) {
     if (creating || moving) return;
     const title = window.prompt('目录名称', '新目录');
@@ -202,7 +274,7 @@ export function NoteCatalog({
     const name = title.trim() || '新目录';
     setCreating('dir');
     try {
-      await api.createNotebook({ name, parentId });
+      await api.createNotebook({ name, parentId, bookId });
       if (parentMindId) expand(parentMindId);
       await load(true);
     } catch (e) {
@@ -241,7 +313,13 @@ export function NoteCatalog({
     }
 
     const out: ParentOption[] = [
-      { key: 'root', parentRefId: null, mindId: 'root', label: '根目录', depth: 0 },
+      {
+        key: 'root',
+        parentRefId: null,
+        mindId: 'root',
+        label: '当前笔记本根目录',
+        depth: 0,
+      },
     ];
     const walk = (n: MindNode, path: string[], depth: number) => {
       if (n.type !== 'notebook' || !n.refId || forbid.has(n.id)) {
@@ -440,17 +518,23 @@ export function NoteCatalog({
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">笔记</div>
-          <div className="text-xs text-slate-400">{loading ? '加载中…' : `${noteCount} 篇`}</div>
-        </div>
         <BrowseModeSwitch mode="catalog" onChange={onBrowseMode} />
         <button
           type="button"
           className="btn-ghost !px-2.5 !py-2"
-          title="新建目录"
-          aria-label="新建目录"
+          title="新建笔记本"
+          aria-label="新建笔记本"
           disabled={creating !== null || moving}
+          onClick={() => void createBook()}
+        >
+          {creating === 'book' ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookPlus className="h-4 w-4" />}
+        </button>
+        <button
+          type="button"
+          className="btn-ghost !px-2.5 !py-2"
+          title="在当前笔记本根上新建目录"
+          aria-label="新建目录"
+          disabled={creating !== null || moving || !bookId}
           onClick={() => void createDirectory(null, null)}
         >
           {creating === 'dir' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderPlus className="h-4 w-4" />}
@@ -465,6 +549,54 @@ export function NoteCatalog({
         >
           {creating === 'note' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FilePlus className="h-4 w-4" />}
         </button>
+      </div>
+
+      <div className="max-h-40 overflow-y-auto border-b border-slate-200 px-2 py-1.5 dark:border-slate-800">
+        <div className="px-2 pb-1 text-[11px] font-medium text-slate-400">笔记本</div>
+        {books.map((book) => {
+          const selected = book.id === bookId;
+          return (
+            <div
+              key={book.id}
+              className={clsx(
+                'flex items-center gap-1 rounded-md pr-1',
+                selected ? 'bg-brand-50 dark:bg-brand-500/15' : 'hover:bg-white dark:hover:bg-slate-800'
+              )}
+            >
+              <button
+                type="button"
+                className={clsx(
+                  'flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1.5 text-left text-sm',
+                  selected
+                    ? 'font-medium text-brand-700 dark:text-brand-300'
+                    : 'text-slate-700 dark:text-slate-200'
+                )}
+                onClick={() => onBookChange(book.id)}
+              >
+                <span className="min-w-0 flex-1 truncate">{book.name}</span>
+                <span className="shrink-0 text-[11px] font-normal text-slate-400">{book.noteCount}</span>
+              </button>
+              <button
+                type="button"
+                className="rounded p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                title="重命名笔记本"
+                aria-label="重命名笔记本"
+                onClick={() => void renameBook(book)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                className="rounded p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+                title="删除笔记本"
+                aria-label="删除笔记本"
+                onClick={() => void deleteBook(book)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       <div className="border-b border-slate-200 px-3 py-2 dark:border-slate-800">
@@ -500,7 +632,11 @@ export function NoteCatalog({
         )}
         {!loading && !error && visible.length === 0 && (
           <div className="px-4 py-10 text-center text-sm text-slate-400">
-            {searching ? (searchLoading ? '搜索中…' : '没有匹配的笔记') : '还没有目录或笔记'}
+            {searching
+              ? searchLoading
+                ? '搜索中…'
+                : '没有匹配的笔记'
+              : '这个笔记本还没有目录或笔记'}
           </div>
         )}
         {!loading && !error && renderNodes(visible, 0)}
@@ -583,7 +719,7 @@ export function NoteCatalog({
               <div className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-400 dark:border-slate-800">
                 {moving
                   ? '移动中…'
-                  : '可移到根目录或任意其他目录。目录不能移进自己或自己的子目录。'}
+                  : '可移到当前笔记本里的其他目录，或放到这个笔记本的根上。'}
               </div>
             </div>
           </div>,

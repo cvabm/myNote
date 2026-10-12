@@ -14,6 +14,7 @@ import { readViewRoute, writeViewRoute } from './lib/viewRoute';
 import type { Note, NoteListItem, ViewFilter } from './types';
 
 const NOTES_PAGE_SIZE = 30;
+const BOOK_KEY = 'mynote.bookId';
 
 /** 默认目录；旧全部笔记 / 搜索 / 笔记本回退到目录，globe 仍视为导图 */
 function normalizeFilter(f: ViewFilter): ViewFilter {
@@ -59,6 +60,13 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [catalogReload, setCatalogReload] = useState(0);
+  const [bookId, setBookId] = useState(() => {
+    try {
+      return localStorage.getItem(BOOK_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
   const [searching, setSearching] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPatch = useRef<Record<string, unknown>>({});
@@ -74,6 +82,41 @@ export default function App() {
   const isMindmap = filter.type === 'mindmap' || filter.type === 'globe';
   const isCatalog = filter.type === 'catalog';
   const momentsQuery = filter.type === 'moments' ? filter.q || '' : '';
+
+  const changeBook = useCallback((id: string) => {
+    setBookId(id);
+    try {
+      localStorage.setItem(BOOK_KEY, id);
+    } catch {
+      /* 忽略无法写入的本地存储 */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancel = false;
+    api
+      .listBooks()
+      .then((list) => {
+        if (cancel) return;
+        setBookId((cur) => {
+          if (cur && list.some((book) => book.id === cur)) return cur;
+          const next = list[0]?.id || '';
+          if (next) {
+            try {
+              localStorage.setItem(BOOK_KEY, next);
+            } catch {
+              /* 忽略无法写入的本地存储 */
+            }
+          }
+          return next;
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancel = true;
+    };
+  }, [user]);
 
   /** 仅回收站用列表 */
   const loadTrash = useCallback(async () => {
@@ -348,6 +391,7 @@ export default function App() {
       const note = await api.createNote({
         title: '未命名笔记',
         notebookId,
+        bookId,
       });
       setCatalogReload((n) => n + 1);
       setOpenInEditMode(true);
@@ -458,6 +502,8 @@ export default function App() {
                 setSelectedId(id);
                 setSidebarOpen(false);
               }}
+              bookId={bookId}
+              onBookChange={changeBook}
               onCreateNote={createCatalogNote}
             />
             {selectedId && current ? (
@@ -496,6 +542,7 @@ export default function App() {
               aria-hidden={!!selectedId}
             >
               <MindMap
+                bookId={bookId}
                 active={!selectedId}
                 onOpenSidebar={() => setSidebarOpen(true)}
                 onBrowseMode={switchBrowseMode}

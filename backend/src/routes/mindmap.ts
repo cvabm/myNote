@@ -36,22 +36,26 @@ mindmapRoutes.use('*', requireAuth);
  */
 mindmapRoutes.get('/', (c) => {
   const user = getUser(c);
+  const bookId = c.req.query('bookId') || '';
+  if (!bookId) return c.json({ error: '请选择笔记本' }, 400);
+  const book = db.prepare('SELECT id FROM books WHERE id = ? AND user_id = ?').get(bookId, user.id);
+  if (!book) return c.json({ error: '笔记本不存在' }, 404);
 
   const notebooks = db
     .prepare(
       `SELECT id, parent_id, name, color, sort_order
-       FROM notebooks WHERE user_id = ?
+       FROM notebooks WHERE user_id = ? AND book_id = ?
        ORDER BY sort_order ASC, created_at ASC`
     )
-    .all(user.id) as NbRow[];
+    .all(user.id, bookId) as NbRow[];
 
   const notes = db
     .prepare(
       `SELECT id, notebook_id, title, updated_at
-       FROM notes WHERE user_id = ? AND deleted_at IS NULL
+       FROM notes WHERE user_id = ? AND book_id = ? AND deleted_at IS NULL
        ORDER BY title COLLATE NOCASE ASC`
     )
-    .all(user.id) as NoteRow[];
+    .all(user.id, bookId) as NoteRow[];
 
   const notesByNb = new Map<string | null, NoteRow[]>();
   for (const n of notes) {

@@ -7,6 +7,7 @@ import type {
   Moment,
   Note,
   NoteListItem,
+  Book,
   Notebook,
   PageResult,
   SoftwarePage,
@@ -70,10 +71,29 @@ export const api = {
     return request<{ ok: boolean }>(`/api/auth/sessions/${id}`, { method: 'DELETE' });
   },
 
+  listBooks() {
+    return request<Book[]>('/api/books');
+  },
+  createBook(data: { name: string }) {
+    return request<Book>('/api/books', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  updateBook(id: string, data: { name: string }) {
+    return request<Book>(`/api/books/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteBook(id: string) {
+    return request<{ ok: boolean }>(`/api/books/${id}`, { method: 'DELETE' });
+  },
+
   listNotebooks() {
     return request<Notebook[]>('/api/notebooks');
   },
-  createNotebook(data: { name: string; parentId?: string | null; color?: string }) {
+  createNotebook(data: { name: string; parentId?: string | null; bookId?: string | null; color?: string }) {
     return request<Notebook>('/api/notebooks', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -100,7 +120,7 @@ export const api = {
   getNote(id: string) {
     return request<Note>(`/api/notes/${id}`);
   },
-  createNote(data: { title?: string; content?: string; notebookId?: string | null }) {
+  createNote(data: { title?: string; content?: string; notebookId?: string | null; bookId?: string | null }) {
     return request<Note>('/api/notes', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -112,6 +132,7 @@ export const api = {
       title: string;
       content: string;
       notebookId: string | null;
+      bookId: string | null;
     }>
   ) {
     return request<Note>(`/api/notes/${id}`, {
@@ -159,8 +180,9 @@ export const api = {
   },
 
   // —— 思维导图 ——
-  getMindmap() {
-    return request<MindmapData>('/api/mindmap');
+  getMindmap(bookId?: string) {
+    const q = bookId ? `?bookId=${encodeURIComponent(bookId)}` : '';
+    return request<MindmapData>(`/api/mindmap${q}`);
   },
 
   // —— 知识图（旧接口，保留兼容）——

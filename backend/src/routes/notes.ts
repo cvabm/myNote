@@ -8,6 +8,7 @@ type NoteRow = {
   id: string;
   user_id: string;
   notebook_id: string | null;
+  book_id: string | null;
   title: string;
   content: string;
   content_html: string;
@@ -55,6 +56,7 @@ function mapNote(row: NoteRow, withContent = true, searchQuery = '') {
   const base = {
     id: row.id,
     notebookId: row.notebook_id,
+    bookId: row.book_id,
     title: row.title,
     deletedAt: row.deleted_at,
     sortOrder: row.sort_order,
@@ -190,20 +192,25 @@ noteRoutes.post('/', async (c) => {
   const title = String(body.title ?? '未命名笔记').trim() || '未命名笔记';
   const content = String(body.content ?? '');
   const notebookId = body.notebookId ? String(body.notebookId) : null;
+  let bookId = body.bookId ? String(body.bookId) : null;
 
   if (notebookId) {
     const nb = db
-      .prepare('SELECT id FROM notebooks WHERE id = ? AND user_id = ?')
-      .get(notebookId, user.id);
-    if (!nb) return c.json({ error: '笔记本不存在' }, 400);
+      .prepare('SELECT id, book_id FROM notebooks WHERE id = ? AND user_id = ?')
+      .get(notebookId, user.id) as { id: string; book_id: string | null } | undefined;
+    if (!nb) return c.json({ error: '目录不存在' }, 400);
+    bookId = nb.book_id;
   }
+  if (!bookId) return c.json({ error: '请选择笔记本' }, 400);
+  const book = db.prepare('SELECT id FROM books WHERE id = ? AND user_id = ?').get(bookId, user.id);
+  if (!book) return c.json({ error: '笔记本不存在' }, 400);
 
   const id = nanoid();
   const tx = db.transaction(() => {
     db.prepare(
-      `INSERT INTO notes (id, user_id, notebook_id, title, content)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(id, user.id, notebookId, title, content);
+      `INSERT INTO notes (id, user_id, notebook_id, book_id, title, content)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(id, user.id, notebookId, bookId, title, content);
     syncNoteFts(id, title, content);
   });
   tx();
@@ -238,25 +245,28 @@ noteRoutes.patch('/:id', async (c) => {
   const contentHtml =
     body.contentHtml !== undefined ? String(body.contentHtml) : existing.content_html;
   let notebookId = existing.notebook_id;
+  let bookId = existing.book_id;
   if (body.notebookId !== undefined) {
     notebookId = body.notebookId ? String(body.notebookId) : null;
     if (notebookId) {
       const nb = db
-        .prepare('SELECT id FROM notebooks WHERE id = ? AND user_id = ?')
-        .get(notebookId, user.id);
-      if (!nb) return c.json({ error: '笔记本不存在' }, 400);
+        .prepare('SELECT id, book_id FROM notebooks WHERE id = ? AND user_id = ?')
+        .get(notebookId, user.id) as { id: string; book_id: string | null } | undefined;
+      if (!nb) return c.json({ error: '目录不存在' }, 400);
+      bookId = nb.book_id;
     }
   }
+  if (body.bookId) bookId = String(body.bookId);
   const contentChanged =
     body.content !== undefined || body.title !== undefined || body.notebookId !== undefined;
 
   const tx = db.transaction(() => {
     db.prepare(
       `UPDATE notes
-       SET title = ?, content = ?, content_html = ?, notebook_id = ?,
+       SET title = ?, content = ?, content_html = ?, notebook_id = ?, book_id = ?,
            updated_at = datetime('now')
        WHERE id = ? AND user_id = ?`
-    ).run(title, content, contentHtml, notebookId, id, user.id);
+    ).run(title, content, contentHtml, notebookId, bookId, id, user.id);
     syncNoteFts(id, title, content);
   });
   tx();

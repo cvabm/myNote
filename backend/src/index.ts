@@ -10,6 +10,7 @@ import { initDb } from './db.js';
 import { resolveDataPath } from './paths.js';
 import { authRoutes } from './routes/auth.js';
 import { momentRoutes } from './routes/moments.js';
+import { bookRoutes } from './routes/books.js';
 import { notebookRoutes } from './routes/notebooks.js';
 import { noteRoutes } from './routes/notes.js';
 import { graphRoutes } from './routes/graph.js';
@@ -39,6 +40,7 @@ app.use(
 app.get('/api/health', (c) => c.json({ ok: true, name: 'MyNote', version: '1.0.0' }));
 
 app.route('/api/auth', authRoutes);
+app.route('/api/books', bookRoutes);
 app.route('/api/notebooks', notebookRoutes);
 app.route('/api/notes', noteRoutes);
 app.route('/api/moments', momentRoutes);

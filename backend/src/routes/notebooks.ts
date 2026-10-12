@@ -8,6 +8,7 @@ type NotebookRow = {
   id: string;
   user_id: string;
   parent_id: string | null;
+  book_id: string | null;
   name: string;
   color: string;
   icon: string;
@@ -54,30 +55,35 @@ notebookRoutes.get('/', (c) => {
 notebookRoutes.post('/', async (c) => {
   const user = getUser(c);
   const body = await c.req.json().catch(() => ({}));
-  const name = String(body.name || '').trim() || '新建笔记本';
+  const name = String(body.name || '').trim() || '新目录';
   const parentId = body.parentId ? String(body.parentId) : null;
+  let bookId = body.bookId ? String(body.bookId) : null;
   const color = String(body.color || '#6366f1');
   const icon = String(body.icon || 'folder');
 
   if (parentId) {
     const parent = db
-      .prepare('SELECT id FROM notebooks WHERE id = ? AND user_id = ?')
-      .get(parentId, user.id);
-    if (!parent) return c.json({ error: '父笔记本不存在' }, 400);
+      .prepare('SELECT id, book_id FROM notebooks WHERE id = ? AND user_id = ?')
+      .get(parentId, user.id) as { id: string; book_id: string | null } | undefined;
+    if (!parent) return c.json({ error: '父目录不存在' }, 400);
+    bookId = parent.book_id;
   }
+  if (!bookId) return c.json({ error: '请选择笔记本' }, 400);
+  const book = db.prepare('SELECT id FROM books WHERE id = ? AND user_id = ?').get(bookId, user.id);
+  if (!book) return c.json({ error: '笔记本不存在' }, 400);
 
   const maxSort = db
     .prepare(
       `SELECT COALESCE(MAX(sort_order), -1) AS m FROM notebooks
-       WHERE user_id = ? AND ${parentId ? 'parent_id = ?' : 'parent_id IS NULL'}`
+       WHERE user_id = ? AND book_id = ? AND ${parentId ? 'parent_id = ?' : 'parent_id IS NULL'}`
     )
-    .get(...(parentId ? [user.id, parentId] : [user.id])) as { m: number };
+    .get(...(parentId ? [user.id, bookId, parentId] : [user.id, bookId])) as { m: number };
 
   const id = nanoid();
   db.prepare(
-    `INSERT INTO notebooks (id, user_id, parent_id, name, color, icon, sort_order)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, user.id, parentId, name, color, icon, maxSort.m + 1);
+    `INSERT INTO notebooks (id, user_id, parent_id, book_id, name, color, icon, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, user.id, parentId, bookId, name, color, icon, maxSort.m + 1);
 
   const row = db.prepare('SELECT * FROM notebooks WHERE id = ?').get(id) as NotebookRow;
   return c.json(mapNotebook({ ...row, note_count: 0 }), 201);

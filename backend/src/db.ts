@@ -180,6 +180,8 @@ export function initDb() {
     console.log('[db] user_sessions.meta_json 已添加');
   }
 
+  ensureBooks();
+
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(ADMIN_USER) as
     | { id: string }
     | undefined;
@@ -191,11 +193,12 @@ export function initDb() {
       'INSERT INTO users (id, username, password_hash, display_name) VALUES (?, ?, ?, ?)'
     ).run(userId, ADMIN_USER, hash, '管理员');
 
-    const defaultNb = nanoid();
-    db.prepare(
-      `INSERT INTO notebooks (id, user_id, parent_id, name, color, icon, sort_order)
-       VALUES (?, ?, NULL, ?, ?, ?, 0)`
-    ).run(defaultNb, userId, '默认笔记本', '#6366f1', 'book');
+    const defaultBook = nanoid();
+    db.prepare(`INSERT INTO books (id, user_id, name, sort_order) VALUES (?, ?, ?, 0)`).run(
+      defaultBook,
+      userId,
+      '默认笔记本'
+    );
 
     const welcomeId = nanoid();
     const welcomeTitle = '欢迎使用 MyNote';
@@ -224,9 +227,9 @@ export function initDb() {
 *默认账号：\`admin\` / \`admin123\`*
 `;
     db.prepare(
-      `INSERT INTO notes (id, user_id, notebook_id, title, content, sort_order)
-       VALUES (?, ?, ?, ?, ?, 0)`
-    ).run(welcomeId, userId, defaultNb, welcomeTitle, welcomeContent);
+      `INSERT INTO notes (id, user_id, notebook_id, book_id, title, content, sort_order)
+       VALUES (?, ?, NULL, ?, ?, ?, 0)`
+    ).run(welcomeId, userId, defaultBook, welcomeTitle, welcomeContent);
 
     db.prepare(
       `INSERT INTO notes_fts (note_id, title, content) VALUES (?, ?, ?)`
@@ -246,6 +249,82 @@ function seedSoftwarePage() {
      VALUES (1, ?, datetime('now'))`
   ).run(SOFTWARE_SEED);
   console.log('[db] 已写入软件推荐初始清单');
+}
+
+/** 笔记本和目录分开。目录仍在 notebooks，笔记本在 books。 */
+function ensureBooks() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS books (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_books_user ON books(user_id, sort_order);
+  `);
+
+  const nbCols = db.prepare('PRAGMA table_info(notebooks)').all() as { name: string }[];
+  if (nbCols.length && !nbCols.some((c) => c.name === 'book_id')) {
+    db.exec('ALTER TABLE notebooks ADD COLUMN book_id TEXT');
+  }
+  const noteCols = db.prepare('PRAGMA table_info(notes)').all() as { name: string }[];
+  if (noteCols.length && !noteCols.some((c) => c.name === 'book_id')) {
+    db.exec('ALTER TABLE notes ADD COLUMN book_id TEXT');
+  }
+
+  const users = db.prepare('SELECT id FROM users').all() as { id: string }[];
+  const migrate = db.transaction(() => {
+    for (const user of users) {
+      let book = db
+        .prepare('SELECT id FROM books WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC LIMIT 1')
+        .get(user.id) as { id: string } | undefined;
+      if (!book) {
+        const id = nanoid();
+        db.prepare(`INSERT INTO books (id, user_id, name, sort_order) VALUES (?, ?, '默认笔记本', 0)`).run(
+          id,
+          user.id
+        );
+        book = { id };
+      }
+      db.prepare(
+        `UPDATE notebooks SET book_id = ? WHERE user_id = ? AND (book_id IS NULL OR book_id = '')`
+      ).run(book.id, user.id);
+      db.prepare(
+        `UPDATE notes SET book_id = ? WHERE user_id = ? AND (book_id IS NULL OR book_id = '')`
+      ).run(book.id, user.id);
+
+      // 误把「新建笔记本」建成的空顶层目录，收成真正的笔记本
+      const mistaken = db
+        .prepare(
+          `SELECT n.id, n.name FROM notebooks n
+           WHERE n.user_id = ? AND n.parent_id IS NULL AND n.book_id = ?
+             AND n.created_at >= '2026-10-12'
+             AND NOT EXISTS (SELECT 1 FROM notebooks c WHERE c.parent_id = n.id)
+             AND NOT EXISTS (SELECT 1 FROM notes nt WHERE nt.notebook_id = n.id)`
+        )
+        .all(user.id, book.id) as { id: string; name: string }[];
+      let order = (
+        db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM books WHERE user_id = ?').get(user.id) as {
+          m: number;
+        }
+      ).m;
+      for (const row of mistaken) {
+        order += 1;
+        const id = nanoid();
+        db.prepare(`INSERT INTO books (id, user_id, name, sort_order) VALUES (?, ?, ?, ?)`).run(
+          id,
+          user.id,
+          row.name,
+          order
+        );
+        db.prepare('DELETE FROM notebooks WHERE id = ? AND user_id = ?').run(row.id, user.id);
+      }
+    }
+  });
+  migrate();
 }
 
 export function syncNoteFts(noteId: string, title: string, content: string) {

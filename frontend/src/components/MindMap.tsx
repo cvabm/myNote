@@ -34,6 +34,7 @@ type Props = {
    * 避免拦截 Ctrl+F 等快捷键，让出浏览器原生查找。
    */
   active?: boolean;
+  bookId?: string;
   onBrowseMode?: (mode: BrowseMode) => void;
 };
 
@@ -426,7 +427,7 @@ function clearShadow(ctx: CanvasRenderingContext2D) {
   ctx.shadowOffsetY = 0;
 }
 
-export function MindMap({ onOpenSidebar, onOpenNote, active = true, onBrowseMode }: Props) {
+export function MindMap({ onOpenSidebar, onOpenNote, active = true, bookId = '', onBrowseMode }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [root, setRoot] = useState<MindNode | null>(null);
@@ -582,10 +583,14 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true, onBrowseMode
   }, [preview?.content, previewHighlightQ]);
 
   const load = useCallback(async (opts?: { keepView?: boolean }) => {
+    if (!bookId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const data = await api.getMindmap();
+      const data = await api.getMindmap(bookId);
       setRoot(data.root);
       setMeta({ noteCount: data.noteCount, notebookCount: data.notebookCount });
       if (!opts?.keepView) {
@@ -613,7 +618,7 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true, onBrowseMode
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [bookId]);
 
   useEffect(() => {
     void load();
@@ -677,6 +682,7 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true, onBrowseMode
           title: name,
           content: '',
           notebookId,
+          bookId,
         });
         setStatus(`已新建笔记：${name}`);
         // 展开父节点
@@ -696,7 +702,7 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true, onBrowseMode
         alert(e instanceof Error ? e.message : '新建失败');
       }
     },
-    [closeCtx, load, onOpenNote]
+    [bookId, closeCtx, load, onOpenNote]
   );
 
   /** 在分类/根下新建子分类（内部仍是 notebook，界面称「分类」） */
@@ -711,7 +717,7 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true, onBrowseMode
         parent.type === 'notebook' && parent.refId ? parent.refId : null;
       try {
         const color = PALETTE[Math.floor(Math.random() * PALETTE.length)];
-        const nb = await api.createNotebook({ name, parentId, color });
+        const nb = await api.createNotebook({ name, parentId, color, bookId });
         setStatus(`已新建分类：${name}`);
         setCollapsed((prev) => {
           const next = new Set(prev);
@@ -724,7 +730,7 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true, onBrowseMode
         alert(e instanceof Error ? e.message : '新建分类失败');
       }
     },
-    [closeCtx, load]
+    [bookId, closeCtx, load]
   );
 
   const deleteNode = useCallback(
@@ -1695,23 +1701,6 @@ export function MindMap({ onOpenSidebar, onOpenNote, active = true, onBrowseMode
         >
           <Menu className="h-4 w-4" />
         </button>
-        <div className="min-w-0 shrink-0 px-0.5">
-          <div className="flex items-center gap-2">
-            <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-sm font-semibold text-transparent dark:from-indigo-400 dark:to-violet-400">
-              思维导图
-            </span>
-            {!loading && (
-              <span className="hidden rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300 sm:inline">
-                {meta.noteCount}
-              </span>
-            )}
-          </div>
-          <div className="hidden max-w-[10rem] truncate text-[11px] text-slate-400 sm:block">
-            {loading
-              ? '加载中…'
-              : status || (selected ? selected.title : '右键编辑 · Ctrl+F 搜索')}
-          </div>
-        </div>
         {onBrowseMode && <BrowseModeSwitch mode="mindmap" onChange={onBrowseMode} />}
 
         {/* 编辑操作（对应当前选中节点） */}

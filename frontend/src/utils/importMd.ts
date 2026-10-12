@@ -10,6 +10,7 @@ export type ImportOptions = {
   /** 保留字段兼容设置页；现已统一不按目录建笔记本 */
   flat: boolean;
   skipEmpty: boolean;
+  bookId?: string;
   onProgress?: (done: number, total: number, current: string) => void;
 };
 
@@ -67,6 +68,14 @@ export async function importMarkdownFiles(
 ): Promise<ImportResult> {
   const result: ImportResult = { ok: 0, skip: 0, fail: 0, errors: [] };
   const total = items.length;
+  let bookId = options.bookId || '';
+  if (!bookId) {
+    const books = await api.listBooks();
+    bookId = books[0]?.id || '';
+  }
+  if (!bookId) {
+    return { ...result, fail: total, errors: ['还没有笔记本'] };
+  }
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
@@ -84,6 +93,7 @@ export async function importMarkdownFiles(
         title,
         content: item.content,
         notebookId: null,
+        bookId,
       });
       result.ok++;
     } catch (e) {
