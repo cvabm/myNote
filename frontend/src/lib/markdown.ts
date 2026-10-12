@@ -23,7 +23,7 @@ import typescript from 'highlight.js/lib/languages/typescript';
 import xml from 'highlight.js/lib/languages/xml';
 import yaml from 'highlight.js/lib/languages/yaml';
 
-import 'highlight.js/styles/github-dark.min.css';
+import 'highlight.js/styles/github.min.css';
 
 hljs.registerLanguage('bash', bash);
 hljs.registerLanguage('sh', shell);
